@@ -1,0 +1,41 @@
+{
+  "name": "riskflow---consigned-risk-portal",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^1.40.0",
+    "clsx": "^2.1.1",
+    "express": "^5.2.1",
+    "framer-motion": "^12.34.3",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^0.563.0",
+    "motion": "^12.40.0",
+    "multer": "^2.1.1",
+    "papaparse": "^5.5.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "recharts": "^3.8.1",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0-beta.10",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^22.14.0",
+    "@types/papaparse": "^5.5.2",
+    "@vitejs/plugin-react": "^5.0.0",
+    "esbuild": "^0.28.0",
+    "tailwindcss": "^4.0.0-beta.10",
+    "tsx": "^4.22.4",
+    "typescript": "~5.8.2",
+    "vite": "^8.0.16"
+  }
+}

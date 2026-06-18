@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Hide scrollbars globally across all browsers, while keeping scrolling operational */
+* {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+@layer base {
+  body {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+  .card-esteira-global {
+    @apply bg-[#0b1120] rounded-xl p-[18px_25px] mb-2.5 w-full max-w-[1300px] mx-auto border border-[#1e293b] grid grid-cols-[1fr_1.2fr_2fr_1fr_0.7fr_0.8fr_0.8fr_0.8fr_0.7fr] items-center gap-[20px] transition-all duration-300 hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5;
+  }
+
+  .info-bloco {
+    @apply flex flex-col text-center items-center;
+  }
+
+  .info-label {
+    @apply text-[#64748b] text-[9px] font-bold uppercase mb-[2px] tracking-wider;
+  }
+
+  .info-valor {
+    @apply text-white text-[14px] font-bold font-sans;
+  }
+
+  .valor-destaque {
+    @apply text-[#38bdf8];
+  }
+
+  .valor-dinheiro {
+    @apply text-[#34d399];
+  }
+
+  .tag-regua {
+    @apply bg-[#1e293b] text-[#fbbf24] px-[10px] py-[3px] rounded-[5px] text-[10px] text-center font-[900];
+  }
+
+  .header-riskflow {
+    @apply flex justify-between items-end w-full max-w-[1300px] mx-auto mb-[25px];
+  }
+
+  .titulo-pagina {
+    @apply text-[34px] font-[900] text-white uppercase tracking-[-1.5px] leading-none m-0;
+  }
+
+  .contador-quantidade {
+    @apply text-[#38bdf8] font-bold text-[14px] uppercase tracking-wider;
+  }
+
+  /* Container customizado para as informações de Login (Topo Direita) */
+  .login-info-container {
+    @apply absolute top-[15px] right-[40px] flex flex-col items-end z-[999];
+  }
+
+  .user-name-label {
+    @apply text-white font-sans text-[13px] font-[800] lowercase;
+  }
+
+  .user-role-label {
+    @apply text-[#38bdf8] font-sans text-[10px] font-bold uppercase;
+  }
+}
