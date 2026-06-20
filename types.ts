@@ -42,6 +42,8 @@ export interface Proposal {
   createdAt?: number;         // Timestamp in ms of creation/import
   lastUpdatedStatusAt?: number; // Timestamp in ms of last status transition
   slaRemainingMs?: number;    // Remaining duration of SLA (3 hours default)
+  fraudCategory?: string;
+  fraudSubMotive?: string;
 }
 
 export interface AgendaEntry {
@@ -81,6 +83,8 @@ export interface DecisionEntry {
     audioUrl?: string; // in case of played URL
     relatoContato?: string;
   };
+  fraudCategory?: string;
+  fraudSubMotive?: string;
 }
 
 export interface Checklist {
@@ -130,6 +134,7 @@ export interface UserPermissions {
   editPartnerSla?: boolean;
   editPartnerBehaviorRegua?: boolean;
   editPartnerSecurityVerify?: boolean;
+  viewFraudPreventionChart?: boolean;
 }
 
 export type UserStatus = 'Online' | 'Offline' | 'Suspenso';

@@ -4,7 +4,7 @@ import { CSVUploader } from './components/CSVUploader';
 import { Sidebar, ViewType } from './components/Sidebar';
 import { ProposalQueue } from './components/ProposalQueue';
 import { SettingsView } from './components/SettingsView';
-import { DashboardView } from './components/DashboardView';
+import { DashboardView, DashboardErrorBoundary } from './components/DashboardView';
 import { HistoryView } from './components/HistoryView';
 import { AgendaView } from './components/AgendaView';
 import { LoginView } from './components/LoginView';
@@ -94,7 +94,7 @@ const App: React.FC = () => {
         password: '1234',
         role: 'Master',
         actingAreas: ['TODAS'],
-        permissions: { viewFullCpf: true, viewValues: true, editRules: true, deleteProposals: true },
+        permissions: { viewFullCpf: true, viewValues: true, editRules: true, deleteProposals: true, viewFraudPreventionChart: true },
         active: true
       },
       {
@@ -103,7 +103,7 @@ const App: React.FC = () => {
         password: '1234',
         role: 'Master',
         actingAreas: ['TODAS'],
-        permissions: { viewFullCpf: true, viewValues: true, editRules: true, deleteProposals: true },
+        permissions: { viewFullCpf: true, viewValues: true, editRules: true, deleteProposals: true, viewFraudPreventionChart: true },
         active: true
       },
       {
@@ -112,7 +112,7 @@ const App: React.FC = () => {
         password: '123',
         role: 'Analista',
         actingAreas: ['TODAS'],
-        permissions: { viewFullCpf: false, viewValues: true, editRules: false, deleteProposals: true },
+        permissions: { viewFullCpf: false, viewValues: true, editRules: false, deleteProposals: true, viewFraudPreventionChart: false },
         active: true
       }
     ];
@@ -396,7 +396,26 @@ const App: React.FC = () => {
     notifiedIds.current.clear();
   };
 
-  const registerDecision = useCallback((proposal: Proposal, decision: RiskStatus | 'IMPORTAÇÃO' | 'ASSUMIU' | 'FINALIZOU' | 'LIBEROU', motivo: string, analista: string = currentUser?.username || "Analista", acao: string = "DECISÃO", aiAnalysisResult?: any, contactAttachment?: any) => {
+  useEffect(() => {
+    if (currentUser) {
+      const match = users.find(u => u.id === currentUser.id);
+      if (match) {
+        if (JSON.stringify(match.permissions) !== JSON.stringify(currentUser.permissions) ||
+            match.role !== currentUser.role ||
+            match.active !== currentUser.active) {
+          if (!match.active) {
+            handleLogout();
+            addToast("Sua conta foi desativada.", "error");
+          } else {
+            setCurrentUser(match);
+            sessionStorage.setItem(SESSION_KEY_AUTH, JSON.stringify(match));
+          }
+        }
+      }
+    }
+  }, [users, currentUser]);
+
+  const registerDecision = useCallback((proposal: Proposal, decision: RiskStatus | 'IMPORTAÇÃO' | 'ASSUMIU' | 'FINALIZOU' | 'LIBEROU', motivo: string, analista: string = currentUser?.username || "Analista", acao: string = "DECISÃO", aiAnalysisResult?: any, contactAttachment?: any, fraudCategory?: string, fraudSubMotive?: string) => {
     const entry: DecisionEntry = {
       id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toLocaleString('pt-BR'),
@@ -408,7 +427,9 @@ const App: React.FC = () => {
       analista: analista,
       acao: acao,
       aiAnalysisResult,
-      contactAttachment
+      contactAttachment,
+      fraudCategory,
+      fraudSubMotive
     };
     setHistory(prev => [entry, ...prev]);
   }, [currentUser]);
@@ -821,7 +842,7 @@ const App: React.FC = () => {
     setSchedulingProposal(proposal);
   }, []);
 
-  const handleFinalize = useCallback((id: string, status: RiskStatus, parecer: string, aiAnalysisResult?: any, contactAttachment?: any) => {
+  const handleFinalize = useCallback((id: string, status: RiskStatus, parecer: string, aiAnalysisResult?: any, contactAttachment?: any, fraudCategory?: string, fraudSubMotive?: string) => {
     if (!currentUser) return;
 
     const target = proposals.find(p => p.id === id);
@@ -836,7 +857,7 @@ const App: React.FC = () => {
       acaoLabel = 'PENDENCIOU';
     }
 
-    registerDecision(target, status, parecer, currentUser.username, acaoLabel, aiAnalysisResult, contactAttachment);
+    registerDecision(target, status, parecer, currentUser.username, acaoLabel, aiAnalysisResult, contactAttachment, fraudCategory, fraudSubMotive);
     addToast(`ADE ${target.ade} finalizada: ${status}`, 'success');
     
     // Se não houver mais propostas deste CPF travadas pelo usuário, libera a trava de CPF
@@ -845,7 +866,7 @@ const App: React.FC = () => {
       setActiveCpfAnalysis(null);
     }
 
-    setProposals(prev => prev.map(p => p.id === id ? { ...transitionProposalStatus(p, status), lockedBy: null } : p));
+    setProposals(prev => prev.map(p => p.id === id ? { ...transitionProposalStatus(p, status), lockedBy: null, fraudCategory, fraudSubMotive } : p));
   }, [currentUser, proposals, registerDecision, addToast]);
 
   const handleSaveSchedule = (ade: string, contato: string, data: string, hora: string, motivo: string) => {
@@ -1065,7 +1086,9 @@ const App: React.FC = () => {
                />
             </div>
           ) : currentView === 'dashboard' ? (
-            <DashboardView proposals={timeFilteredProposals} onNavigate={setCurrentView} history={history} isDarkMode={isDarkMode} currentUser={currentUser || undefined} users={users} importedBases={importedBases} />
+            <DashboardErrorBoundary isDarkMode={isDarkMode}>
+              <DashboardView proposals={timeFilteredProposals} onNavigate={setCurrentView} history={history} isDarkMode={isDarkMode} currentUser={currentUser || undefined} users={users} importedBases={importedBases} />
+            </DashboardErrorBoundary>
           ) : currentView === 'history' ? (
             <HistoryView history={history} isDarkMode={isDarkMode} />
           ) : currentView === 'base_management' ? (

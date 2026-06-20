@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Proposal, RiskStatus, DecisionEntry, UserAccount, BaseImport } from '../types';
+import { Proposal, RiskStatus, DecisionEntry, UserAccount, BaseImport, UserPermissions } from '../types';
 import { ViewType } from './Sidebar';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   XCircle,
   Users,
+  User,
   ChevronRight,
   Filter,
   ArrowUpRight,
@@ -19,7 +20,10 @@ import {
   Download,
   Bell,
   X,
-  Sparkles
+  Sparkles,
+  GripVertical,
+  ShieldCheck,
+  PieChart
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -33,6 +37,44 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
+
+export class DashboardErrorBoundary extends React.Component<{ children: React.ReactNode, isDarkMode?: boolean }, { hasError: boolean, error: Error | null }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("DashboardErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className={`p-8 space-y-6 ${this.props.isDarkMode ? 'bg-[#0f172a] text-red-400' : 'bg-slate-50 text-red-650'}`}>
+          <h2 className="text-xl font-black uppercase">Erro Crítico no Painel Operacional</h2>
+          <p className="text-sm font-semibold">Ocorreu um erro ao processar os dados do dashboard. A pilha do erro está detalhada abaixo:</p>
+          <div className="p-5 rounded-2xl bg-red-950/20 border border-red-500/20 text-xs overflow-auto font-mono max-h-96">
+            <b>{this.state.error?.name}: {this.state.error?.message}</b>
+            <pre className="mt-2 text-[10px] leading-relaxed">{this.state.error?.stack}</pre>
+          </div>
+          <button 
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-4 py-2 bg-red-650 text-white rounded-xl text-xs font-bold uppercase hover:bg-red-750 transition-all"
+          >
+            Tentar Recarregar Painel
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const parsePtBrDate = (dateStr: string): Date => {
   try {
@@ -142,6 +184,91 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   importedBases = []
 }) => {
   const [selectedBancos, setSelectedBancos] = useState<string[]>([]);
+  
+  const [cardOrder, setCardOrder] = useState<string[]>(() => {
+    const saved = localStorage.getItem('riskflow_dashboard_card_order');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (!parsed.includes('fraudes-evitadas')) {
+            parsed.push('fraudes-evitadas');
+          }
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    return [
+      'minha-producao',
+      'resumo-performance',
+      'relatorio-producao',
+      'painel-grafico',
+      'distribuicao-demandas',
+      'resumo-atividade',
+      'filtros-relatorio',
+      'relatorio-operacional',
+      'produtividade-detalhada',
+      'distribuicao-acoes',
+      'fraudes-evitadas'
+    ];
+  });
+
+  const [draggableId, setDraggableId] = useState<string | null>(null);
+
+  const userRole = currentUser?.role || 'Analista';
+
+  const hasPermission = (
+    permissionKey: keyof UserPermissions,
+    defaultForRoles: { master: boolean; supervisor: boolean; analyst: boolean }
+  ): boolean => {
+    const permVal = currentUser?.permissions?.[permissionKey];
+    if (permVal !== undefined) {
+      return permVal;
+    }
+    if (userRole === 'Master') return defaultForRoles.master;
+    if (userRole === 'Supervisor') return defaultForRoles.supervisor;
+    return defaultForRoles.analyst;
+  };
+
+  useEffect(() => {
+    localStorage.setItem('riskflow_dashboard_card_order', JSON.stringify(cardOrder));
+  }, [cardOrder]);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const draggedId = e.dataTransfer.getData("text/plain");
+    if (draggedId === targetId) return;
+
+    const newOrder = [...cardOrder];
+    const draggedIdx = newOrder.indexOf(draggedId);
+    const targetIdx = newOrder.indexOf(targetId);
+
+    if (draggedIdx !== -1 && targetIdx !== -1) {
+      newOrder.splice(draggedIdx, 1);
+      newOrder.splice(targetIdx, 0, draggedId);
+      setCardOrder(newOrder);
+    }
+  };
+
+  const renderDragHandle = (cardId: string) => (
+    <div
+      onMouseDown={() => setDraggableId(cardId)}
+      onMouseUp={() => setDraggableId(null)}
+      className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-indigo-500 transition-colors p-1.5 rounded-lg bg-slate-800/10 dark:bg-slate-800/30 hover:bg-slate-800/20 shrink-0 inline-flex items-center justify-center mr-1"
+      title="Arraste para reordenar"
+    >
+      <GripVertical size={14} />
+    </div>
+  );
   
   // Track seen base IDs to know which ones are new to this user
   const [seenBaseIds, setSeenBaseIds] = useState<string[]>(() => {
@@ -909,7 +1036,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     );
   };
 
-  const userRole = currentUser?.role || 'Analista';
   const isAdmin = userRole === 'Master';
   const isSupervisor = userRole === 'Supervisor';
   const isAnalyst = userRole === 'Analista';
@@ -918,6 +1044,1248 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const viewAdminResources = hasFullAnalyticalAccess;
   const viewSupervisorResources = hasFullAnalyticalAccess || isSupervisor;
 
+  const renderCard = (cardId: string): React.ReactNode => {
+    const showAnalystTable = hasPermission('viewActionsAnalystBank', { master: true, supervisor: true, analyst: false });
+
+    switch (cardId) {
+      case 'minha-producao':
+        return (
+          <div className={`p-6 rounded-[2rem] border transition-all shadow-sm ${
+            isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
+              <div className="flex items-center gap-3">
+                {renderDragHandle('minha-producao')}
+                <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-indigo-950/40 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}><User size={18} /></div>
+                <div>
+                  <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                    Minha Produção Individual
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium font-bold uppercase tracking-tight mt-0.5">
+                    Métricas de desempenho pessoal do login ativo: <span className="text-indigo-500 font-mono font-black">{currentUser?.username || 'Analista'}</span>
+                  </p>
+                </div>
+              </div>
+              <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                isDarkMode ? 'bg-indigo-950/40 text-indigo-400 border border-indigo-500/20' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+              }`}>
+                Perfil: {userRole === 'Master' ? 'Administrador' : userRole}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-950/40 border-slate-850' : 'bg-slate-50/50 border-slate-200/50'}`}>
+                <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <span>📅</span> Produção Diária (Hoje)
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
+                    <div className="text-2xl font-black text-slate-800 dark:text-white">{performanceMetrics.individual.total}</div>
+                    <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Processadas</div>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
+                    <div className="text-2xl font-black text-emerald-500">{performanceMetrics.individual.approvals}</div>
+                    <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Aprovadas</div>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
+                    <div className="text-2xl font-black text-orange-500">{performanceMetrics.individual.pending}</div>
+                    <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Pendenciadas</div>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
+                    <div className="text-2xl font-black text-red-500">{performanceMetrics.individual.rejected}</div>
+                    <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Reprovadas</div>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-dashed border-slate-150 dark:border-slate-800 flex justify-between items-center text-[10px]">
+                  <span className="text-slate-450 font-bold uppercase text-[9px]">Taxa de Aprovação (Hoje):</span>
+                  <span className="font-mono font-black text-emerald-500">{performanceMetrics.individual.approvalRate}%</span>
+                </div>
+                <div className="mt-1 flex justify-between items-center text-[10px]">
+                  <span className="text-slate-450 font-bold uppercase text-[9px]">SLA Médio de Atendimento:</span>
+                  <span className="font-mono font-black text-indigo-400">
+                    {performanceMetrics.individual.avgSla > 0 ? formatMsToTime(performanceMetrics.individual.avgSla) : "---"}
+                  </span>
+                </div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-950/40 border-slate-850' : 'bg-slate-50/50 border-slate-200/50'}`}>
+                <h4 className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <span>📅</span> Produção Mensal (Mês)
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-105 dark:border-slate-800/80 text-center">
+                    <div className="text-2xl font-black text-slate-800 dark:text-white">{performanceMetrics.individualMonth.total}</div>
+                    <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Processadas</div>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-105 dark:border-slate-800/80 text-center">
+                    <div className="text-2xl font-black text-emerald-500">{performanceMetrics.individualMonth.approvals}</div>
+                    <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Aprovadas</div>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-105 dark:border-slate-800/80 text-center">
+                    <div className="text-2xl font-black text-orange-500">{performanceMetrics.individualMonth.pending}</div>
+                    <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Pendenciadas</div>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-105 dark:border-slate-800/80 text-center">
+                    <div className="text-2xl font-black text-red-500">{performanceMetrics.individualMonth.rejected}</div>
+                    <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Reprovadas</div>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-dashed border-slate-150 dark:border-slate-800 flex justify-between items-center text-[10px]">
+                  <span className="text-slate-450 font-bold uppercase text-[9px]">Taxa de Aprovação (Mês):</span>
+                  <span className="font-mono font-black text-emerald-500">{performanceMetrics.individualMonth.approvalRate}%</span>
+                </div>
+                <div className="mt-1 flex justify-between items-center text-[10px]">
+                  <span className="text-slate-450 font-bold uppercase text-[9px]">SLA Médio do Período:</span>
+                  <span className="font-mono font-black text-purple-400">
+                    {performanceMetrics.individualMonth.avgSla > 0 ? formatMsToTime(performanceMetrics.individualMonth.avgSla) : "---"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'resumo-performance':
+        if (!hasPermission('viewDailyPerfSummary', { master: true, supervisor: true, analyst: true })) return null;
+        return (
+          <div className={`p-6 rounded-[2rem] border transition-all shadow-sm ${
+            isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
+              <div className="flex items-center gap-3">
+                {renderDragHandle('resumo-performance')}
+                <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-indigo-950/40 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}><Activity size={18} /></div>
+                <div>
+                  <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                    Resumo de Performance do Dia
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Métricas de propostas processadas pelos analistas hoje.
+                  </p>
+                </div>
+              </div>
+              {currentUser && (
+                <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                  isDarkMode ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
+                }`}>
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  Analista Logado: <span className="font-mono">{currentUser.username}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className={`p-5 rounded-2xl border transition-all ${
+                isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
+              }`}>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Propostas Processadas</p>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-905'}`}>
+                    {performanceMetrics.individual.total}
+                  </span>
+                  <span className="text-xs text-slate-400 font-semibold">{performanceMetrics.individual.total === 1 ? 'proposta' : 'propostas'} hoje</span>
+                </div>
+                
+                <div className="mt-3 pt-3 border-t border-dashed dark:border-slate-800/80 border-slate-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-450 font-bold uppercase text-[9px] tracking-wide">Fila de Análise:</span>
+                  <span className={`font-black font-mono ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                    {performanceMetrics.general.total} no total
+                  </span>
+                </div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border transition-all ${
+                isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
+              }`}>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Taxa de Aprovação</p>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-905'}`}>
+                    {performanceMetrics.individual.approvalRate}%
+                  </span>
+                  <span className="text-xs text-slate-400 font-semibold">de aprovações</span>
+                </div>
+                
+                <div className="mt-3 pt-3 border-t border-dashed dark:border-slate-800/80 border-slate-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-455 font-bold uppercase text-[9px] tracking-wide">Média Geral:</span>
+                  <span className={`font-black font-mono ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                    {performanceMetrics.general.approvalRate}%
+                  </span>
+                </div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border transition-all ${
+                isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
+              }`}>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">SLA / Tempo de Atendimento</p>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-905'}`}>
+                    {performanceMetrics.individual.avgSla > 0 ? formatMsToTime(performanceMetrics.individual.avgSla) : "---"}
+                  </span>
+                  <span className="text-xs text-slate-400 font-semibold">médio por análise</span>
+                </div>
+                
+                <div className="mt-3 pt-3 border-t border-dashed dark:border-slate-800/80 border-slate-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-455 font-bold uppercase text-[9px] tracking-wide">Tempo Médio Geral:</span>
+                  <span className={`font-black font-mono ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                    {performanceMetrics.general.avgSla > 0 ? formatMsToTime(performanceMetrics.general.avgSla) : "---"}
+                  </span>
+                </div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border transition-all ${
+                isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
+              }`}>
+                <div className="flex items-center justify-between mb-2 pb-1 border-b dark:border-slate-800/80 border-slate-150">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🏆 Top 3 Analistas (Hoje)</p>
+                  <span className={`text-[9.5px] font-black font-mono px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                    Ranking
+                  </span>
+                </div>
+                
+                {topAnalystsToday.length === 0 ? (
+                  <div className="h-[76px] flex items-center justify-center text-[10px] font-semibold text-slate-400 text-center uppercase tracking-wide">
+                    Nenhuma proposta finalizada<br />hoje
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {topAnalystsToday.map((analyst, index) => {
+                      const medals = ["🥇", "🥈", "🥉"];
+                      return (
+                        <div key={analyst.name} className="flex items-center justify-between text-xs py-0.5 first:pt-0 last:pb-0 border-b border-dashed border-slate-150 dark:border-slate-800 last:border-0">
+                          <div className="flex items-center gap-1.5 truncate max-w-[110px]">
+                            <span className="text-sm leading-none">{medals[index]}</span>
+                            <span className={`font-black truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`} title={analyst.name}>
+                              {analyst.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 font-mono text-[11px]">
+                            <span className={`font-black ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>{analyst.total}</span>
+                            <span className="text-[9px] text-slate-400 font-sans font-medium" title="Sendo: (Aprovações / Pendenciadas / Recusadas)">
+                              ({analyst.approvals}A/{analyst.pendencies}P/{analyst.recusals}R)
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'relatorio-producao':
+        if (!hasPermission('viewProductionReportPeriod', { master: true, supervisor: true, analyst: false })) return null;
+        return (
+          <div className={`p-6 rounded-[2rem] border transition-all shadow-sm ${
+            isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
+              <div className="flex items-center gap-3">
+                {renderDragHandle('relatorio-producao')}
+                <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-indigo-950/40 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}><BarChart3 size={18} /></div>
+                <div>
+                  <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                    Relatório de Produção por Período
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Métricas de desempenho individual e da equipe no período selecionado.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase text-slate-400">De:</span>
+                  <input 
+                    type="date"
+                    value={prodStartDate}
+                    onChange={(e) => setProdStartDate(e.target.value)}
+                    className={`px-3 py-1.5 rounded-xl border text-[11px] font-black outline-none transition-all ${
+                      isDarkMode ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-slate-900'
+                    }`}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase text-slate-405">Até:</span>
+                  <input 
+                    type="date"
+                    value={prodEndDate}
+                    onChange={(e) => setProdEndDate(e.target.value)}
+                    className={`px-3 py-1.5 rounded-xl border text-[11px] font-black outline-none transition-all ${
+                      isDarkMode ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-slate-900'
+                    }`}
+                  />
+                </div>
+
+                <button
+                  onClick={handleDownloadProductionCSV}
+                  disabled={!!productionReportData.error}
+                  className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all ${
+                    productionReportData.error 
+                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-200 dark:shadow-none'
+                  }`}
+                >
+                  <Download size={12} />
+                  Exportar XLS/CSV
+                </button>
+              </div>
+            </div>
+
+            {productionReportData.error ? (
+              <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 rounded-2xl text-[11px] font-bold">
+                ⚠️ {productionReportData.error}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {productionReportData.totals && (
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Processadas no Período</p>
+                      <p className={`text-lg font-black mt-1 ${isDarkMode ? 'text-white' : 'text-slate-850'}`}>{productionReportData.totals.total}</p>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-emerald-50/40 border-slate-150'}`}>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Taxa de Aprovação</p>
+                      <div className="flex items-baseline gap-1.5 mt-1">
+                        <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">{productionReportData.totals.approvalRate}%</p>
+                        <span className="text-[10px] text-slate-400">({productionReportData.totals.totalApprovals})</span>
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-orange-50/40 border-slate-150'}`}>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Taxa de Pendência</p>
+                      <div className="flex items-baseline gap-1.5 mt-1">
+                        <p className="text-lg font-black text-orange-600 dark:text-orange-400">{productionReportData.totals.pendingRate}%</p>
+                        <span className="text-[10px] text-slate-400">({productionReportData.totals.pendencies})</span>
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-red-50/40 border-slate-150'}`}>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Taxa de Recusa</p>
+                      <div className="flex items-baseline gap-1.5 mt-1">
+                        <p className="text-lg font-black text-red-600 dark:text-red-400">{productionReportData.totals.recusalRate}%</p>
+                        <span className="text-[10px] text-slate-400">({productionReportData.totals.recusals})</span>
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-purple-50/40 border-slate-150'}`}>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">SLA Médio Comercial</p>
+                      <p className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1">
+                        {productionReportData.totals.avgSla > 0 ? formatMsToTime(productionReportData.totals.avgSla) : "---"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto rounded-2xl border dark:border-slate-800 border-slate-150">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className={`border-b dark:border-slate-800 border-slate-150 text-[9px] font-black uppercase tracking-wider ${
+                        isDarkMode ? 'bg-slate-950/20 text-slate-450' : 'bg-slate-100/60 text-slate-500'
+                      }`}>
+                        <th className="p-4">Analista</th>
+                        <th className="p-4 text-center">Processados</th>
+                        <th className="p-4 text-center">Aprovação %</th>
+                        <th className="p-4 text-center">Pendências %</th>
+                        <th className="p-4 text-center">Reprovações %</th>
+                        <th className="p-4 text-center">Contato</th>
+                        <th className="p-4">Detalhamento das Aprovações</th>
+                        <th className="p-4 text-right">SLA Médio</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y text-xs ${isDarkMode ? 'divide-slate-800' : 'divide-slate-150'}`}>
+                      {productionReportData.rows.map((row, idx) => (
+                        <tr 
+                          key={row.analyst}
+                          className={idx % 2 === 0 ? '' : isDarkMode ? 'bg-slate-950/20' : 'bg-slate-50/30'}
+                        >
+                          <td className="p-4 font-bold max-w-[140px] truncate">{row.analyst}</td>
+                          <td className="p-4 font-black font-mono text-center">{row.total}</td>
+                          <td className="p-4 font-black font-mono text-center text-emerald-600 dark:text-emerald-400">
+                            {row.approvalRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({row.totalApprovals})</span>
+                          </td>
+                          <td className="p-4 font-black font-mono text-center text-orange-600 dark:text-orange-400">
+                            {row.pendingRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({row.pendencies})</span>
+                          </td>
+                          <td className="p-4 font-black font-mono text-center text-red-600 dark:text-red-400">
+                            {row.recusalRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({row.recusals})</span>
+                          </td>
+                          <td className="p-4 font-black font-mono text-center text-purple-600 dark:text-purple-400">
+                            {row.contactMesaRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({row.contactMesa})</span>
+                          </td>
+                          <td className="p-4 space-y-1">
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span>📞 Contato / Video:</span>
+                                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
+                                  {row.cvCount} ({row.cvRate}%)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span>📄 Documental:</span>
+                                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
+                                  {row.docCount} ({row.docRate}%)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span>🤝 De Acordo:</span>
+                                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
+                                  {row.daCount} ({row.daRate}%)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span>⚡ Fast-Track:</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                                  {row.ftCount} ({row.ftRate}%)
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 font-bold font-mono text-right text-slate-500">
+                            {row.avgSla > 0 ? formatMsToTime(row.avgSla) : "---"}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {productionReportData.totals && (
+                        <tr className={`font-black ${
+                          isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-indigo-50/50 text-slate-800'
+                        }`}>
+                          <td className="p-4 uppercase tracking-tight text-[11px] font-black">🌟 Total Equipe</td>
+                          <td className="p-4 text-center font-mono text-[13px]">{productionReportData.totals.total}</td>
+                          <td className="p-4 text-center font-mono text-[13px] text-emerald-600 dark:text-emerald-400">
+                            {productionReportData.totals.approvalRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({productionReportData.totals.totalApprovals})</span>
+                          </td>
+                          <td className="p-4 text-center font-mono text-[13px] text-orange-600 dark:text-orange-400 font-bold font-mono">
+                            {productionReportData.totals.pendingRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({productionReportData.totals.pendencies})</span>
+                          </td>
+                          <td className="p-4 text-center font-mono text-[13px] text-red-600 dark:text-red-400 font-bold font-mono">
+                            {productionReportData.totals.recusalRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({productionReportData.totals.recusals})</span>
+                          </td>
+                          <td className="p-4 text-center font-mono text-[13px] text-purple-600 dark:text-purple-400 font-bold font-mono">
+                            {productionReportData.totals.contactMesaRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({productionReportData.totals.contactMesa})</span>
+                          </td>
+                          <td className="p-4">
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-bold">
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span>📞 Contato / Video:</span>
+                                <span className="text-slate-800 dark:text-white font-mono">
+                                  {productionReportData.totals.cvCount} ({productionReportData.totals.cvRate}%)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span>📄 Documental:</span>
+                                <span className="text-slate-800 dark:text-white font-mono">
+                                  {productionReportData.totals.docCount} ({productionReportData.totals.docRate}%)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span>🤝 De Acordo:</span>
+                                <span className="text-slate-800 dark:text-white font-mono">
+                                  {productionReportData.totals.daCount} ({productionReportData.totals.daRate}%)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-500">
+                                <span>⚡ Fast-Track:</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+                                  {productionReportData.totals.ftCount} ({productionReportData.totals.ftRate}%)
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-300">
+                            {productionReportData.totals.avgSla > 0 ? formatMsToTime(productionReportData.totals.avgSla) : "---"}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div className="p-4 rounded-xl border dark:border-slate-800/80 border-slate-150 bg-slate-50/50 dark:bg-slate-900/10 text-[10px] text-slate-400 leading-relaxed font-semibold">
+                  💡 <b>Conceito de Análise:</b> O SLA é medido a partir da diferença de tempo entre o log "ASSUMIU" e o parecer conclusivo. Os percentuais acima são calculados sobre as <b>propostas aprovadas</b> de cada analista para acompanhamento tático.
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'painel-grafico':
+        if (!hasPermission('viewPerformanceChartsPeriod', { master: true, supervisor: true, analyst: false })) return null;
+        return (
+          <div className={`p-6 rounded-[2rem] border transition-all shadow-sm space-y-6 ${
+            isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
+              <div className="flex items-center gap-3">
+                {renderDragHandle('painel-grafico')}
+                <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-indigo-950/40 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}><TrendingUp size={18} /></div>
+                <div>
+                  <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                    Painel Gráfico de Performance e Produtividade do Período
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Análise de tendências cronológicas, identificação de gargalos de análise, e distribuição individual/equipe para reuniões de feedback.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  Período: {prodStartDate} - {prodEndDate}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
+                <div className="mb-4">
+                  <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                    📈 Evolução Diária (Aprovações vs. Recusas)
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Comportamento e volume de deferidos e indeferidos ao longo dos dias selecionados.
+                  </p>
+                </div>
+                
+                {chartTrendData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                    Nenhum dado histórico encontrado para a evolução diária no período.
+                  </div>
+                ) : (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorApprovals" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorRecusals" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15}/>
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
+                          stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        />
+                        <YAxis 
+                          tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
+                          stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
+                            borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            color: isDarkMode ? '#ffffff' : '#1e293b',
+                            fontWeight: 'bold'
+                          }}
+                        />
+                        <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                        <Area name="Aprovações" type="monotone" dataKey="Aprovações" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorApprovals)" />
+                        <Area name="Recusas" type="monotone" dataKey="Recusas" stroke="#ef4444" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRecusals)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
+                <div className="mb-4">
+                  <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                    👥 Produtividade e Pareceres por Analista
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Resultados individuais detalhados para identificação de gargalos de desempenho e tomada de decisão.
+                  </p>
+                </div>
+
+                {productionReportData.rows.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                    Nenhum analista com produção registrada no período selecionado.
+                  </div>
+                ) : (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsBarChart 
+                        data={productionReportData.rows} 
+                        margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
+                        <XAxis 
+                          dataKey="analyst" 
+                          tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
+                          stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        />
+                        <YAxis 
+                          tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
+                          stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
+                            borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            color: isDarkMode ? '#ffffff' : '#1e293b',
+                            fontWeight: 'bold'
+                          }}
+                        />
+                        <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                        <Bar name="Aprovações" dataKey="totalApprovals" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        <Bar name="Pendências" dataKey="pendencies" fill="#f97316" radius={[4, 4, 0, 0]} />
+                        <Bar name="Reprovações" dataKey="recusals" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      </RechartsBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-xl border flex flex-col md:flex-row gap-4 justify-between items-start md:items-center ${
+              isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-indigo-50/20 border-indigo-100 dark:border-indigo-900/40'
+            }`}>
+              <div className="space-y-1">
+                <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1">
+                  🔎 DIAGNÓSTICO DE FLUXO (GARGALOS)
+                </span>
+                <p className={`text-[11px] font-medium leading-relaxed ${isDarkMode ? 'text-slate-350' : 'text-slate-600'}`}>
+                  {productionReportData.totals && productionReportData.totals.total > 0 ? (
+                    <>
+                      A equipe operou <b>{productionReportData.totals.total}</b> propostas no sistema entre <b>{prodStartDate}</b> e <b>{prodEndDate}</b>.
+                      A taxa média de aprovação foi de <b className="text-emerald-500">{productionReportData.totals.approvalRate}%</b>, com <b className="text-orange-500">{productionReportData.totals.pendingRate}% de pendências</b> e <b className="text-red-500">{productionReportData.totals.recusalRate}% de reprovações</b>. 
+                      {productionReportData.totals.pendingRate > 20 ? (
+                        " Gargalo Identificado: A alta proporção de pendências (superior a 20%) sugere ineficiência no recolhimento ou qualidade de envio dos documentos por parte dos parceiros. Recomendamos melhorar a qualidade dos arquivos enviados antes da submissão no sistema."
+                      ) : (
+                        " Indicadores Saudáveis: O fluxo de aprovação é contínuo e equilibrado. Contatos e decisões de aprovação automática estão operando de acordo com as metas."
+                      )}
+                    </>
+                  ) : (
+                    "Nenhuma proposta registrada no período selecionado."
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'distribuicao-demandas':
+        return (
+          <div className={`p-6 rounded-[2rem] border transition-all shadow-sm space-y-6 ${
+            isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
+              <div className="flex items-center gap-3">
+                {renderDragHandle('distribuicao-demandas')}
+                <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-indigo-950/40 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}><PieChart size={18} /></div>
+                <div>
+                  <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                    Distribuição de Demandas por Segmento (Convênio & Produto)
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Análise comparativa das propostas por convênio e produto para identificação de maiores demandas de análise.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  Total sob Análise: {demandDistributions.totalProposals} Propostas
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
+                <div className="mb-4">
+                  <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                    🏢 Concentração por Categoria de Convênio (INSS vs SIAPE vs PRIVADO)
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Volume atual de propostas de acordo com a categoria de convênio mapeada.
+                  </p>
+                </div>
+
+                {demandDistributions.covenantData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                    Nenhuma proposta encontrada para convênios.
+                  </div>
+                ) : (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsBarChart 
+                        data={demandDistributions.covenantData} 
+                        margin={{ top: 10, right: 10, left: -25, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fill: '#94a3b8', fontSize: 8, fontWeight: 'bold' }} 
+                          stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        />
+                        <YAxis 
+                          tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
+                          stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
+                            borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            color: isDarkMode ? '#ffffff' : '#1e293b',
+                            fontWeight: 'bold'
+                          }}
+                        />
+                        <Bar name="Volume" dataKey="Volume" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      </RechartsBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
+                <div className="mb-4">
+                  <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                    🏷️ Concentração por Produto (NOVO vs REFIN vs Cartão vs SAQUE COMPLEMENTAR)
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Distribuição das demandas por tipo de produto.
+                  </p>
+                </div>
+
+                {demandDistributions.productData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                    Nenhuma proposta encontrada para produtos.
+                  </div>
+                ) : (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsBarChart 
+                        data={demandDistributions.productData} 
+                        margin={{ top: 10, right: 10, left: -25, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fill: '#94a3b8', fontSize: 8, fontWeight: 'bold' }} 
+                          stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        />
+                        <YAxis 
+                          tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
+                          stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
+                            borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            color: isDarkMode ? '#ffffff' : '#1e293b',
+                            fontWeight: 'bold'
+                          }}
+                        />
+                        <Bar name="Volume" dataKey="Volume" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                      </RechartsBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-xl border flex flex-col md:flex-row gap-4 justify-between items-start md:items-center ${
+              isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-indigo-50/20 border-indigo-100 dark:border-indigo-900/40'
+            }`}>
+              <div className="space-y-1">
+                <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1">
+                  💡 INSIGHT DE MAPEAMENTO DE PROPOSTAS
+                </span>
+                <p className={`text-[11px] font-medium leading-relaxed ${isDarkMode ? 'text-slate-350' : 'text-slate-600'}`}>
+                  {demandDistributions.totalProposals > 0 ? (
+                    <>
+                      A maior concentração de convênios atualmente está no segmento <b className="text-blue-500">{demandDistributions.covenantData[0]?.name || 'N/A'}</b> com <b>{demandDistributions.covenantData[0]?.Volume || 0} propostas</b>. 
+                      No desdobramento de produtos, a maior demanda reside em <b className="text-purple-500">{demandDistributions.productData[0]?.name || 'N/A'}</b> (responsável por <b>{demandDistributions.productData[0]?.Volume || 0} propostas</b>). 
+                      Supervisores devem alinhar recursos analíticos para equilibrar esses fluxos.
+                    </>
+                  ) : (
+                    "Não há propostas registradas para o banco selecionado."
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'resumo-atividade':
+        if (!hasPermission('viewActivitySummaryGov', { master: true, supervisor: false, analyst: false })) return null;
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col items-center justify-center gap-4 text-center">
+              <h2 className={`text-2xl font-black tracking-tight flex items-center gap-3 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                {renderDragHandle('resumo-atividade')}
+                <TrendingUp size={28} className="text-blue-600" />
+                📈 Resumo de Atividade
+              </h2>
+              <div className="flex items-center gap-2">
+                <Filter size={16} className="text-slate-400" />
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">BI Dashboard V18</span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <KpiMetric title="Total de Ações" value={metrics.stats.total} color="blue" icon={<BarChart3 size={24} />} isDarkMode={isDarkMode} />
+              <KpiMetric title="Aprovações ✅" value={metrics.stats.approvals} color="emerald" icon={<CheckCircle2 size={24} />} isDarkMode={isDarkMode} />
+              <KpiMetric title="Pendências 🔴" value={metrics.stats.pendencies} color="orange" icon={<AlertTriangle size={24} />} isDarkMode={isDarkMode} />
+              <KpiMetric title="Reprovações ✖️" value={metrics.stats.refusals} color="red" icon={<XCircle size={24} />} isDarkMode={isDarkMode} />
+            </div>
+          </div>
+        );
+
+      case 'filtros-relatorio':
+        return (
+          <div className={`rounded-[2rem] border p-6 shadow-sm space-y-4 ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
+            <div className="flex items-center gap-3">
+              {renderDragHandle('filtros-relatorio')}
+              <Filter size={18} className="text-slate-400" />
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Filtros de Relatório</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={() => setSelectedBancos([])}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all border ${selectedBancos.length === 0 ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+              >
+                Todos os Bancos
+              </button>
+              {availableBanks.map(bank => (
+                <button 
+                  key={bank}
+                  onClick={() => toggleBankFilter(bank)}
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all border ${selectedBancos.includes(bank) ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200' : isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                >
+                  {bank}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'relatorio-operacional':
+        if (!hasPermission('viewOperationalReportCsv', { master: true, supervisor: true, analyst: false })) return null;
+        return (
+          <div id="solicitacao_relatorio_operacional" className={`rounded-[2rem] border p-8 shadow-sm space-y-6 ${isDarkMode ? 'bg-slate-900/40 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                {renderDragHandle('relatorio-operacional')}
+                <div className={`p-3 rounded-2xl ${isDarkMode ? 'bg-blue-500/10 text-blue-404' : 'bg-blue-50 text-blue-604'}`}>
+                  <FileText size={22} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-tight">Relatório Operacional (Exportação CSV)</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Extraia e filtre decisões por banco, status da proposta e sub-motivo específico.</p>
+                </div>
+              </div>
+              <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                reportItems.length > 0 
+                  ? 'bg-emerald-500/10 text-emerald-500' 
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+              }`}>
+                Registros Selecionados: {reportItems.length}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Banco Emissor</label>
+                <select
+                  id="relatorio-filtro-banco"
+                  value={repBank}
+                  onChange={(e) => setRepBank(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
+                    isDarkMode 
+                      ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500 font-bold' 
+                      : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900 font-bold'
+                  }`}
+                >
+                  <option value="TODOS">TODOS OS BANCOS</option>
+                  {reportBanks.map(bank => (
+                    <option key={bank} value={bank}>{bank}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Finalização (Status)</label>
+                <select
+                  id="relatorio-filtro-finalizacao"
+                  value={repStatus}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
+                    isDarkMode 
+                      ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500 font-bold' 
+                      : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900 font-bold'
+                  }`}
+                >
+                  <option value="TODAS">TODAS AS FINALIZAÇÕES</option>
+                  <option value="APROVADA">APROVADA (SISTEMA & ANALISTA)</option>
+                  <option value="REPROVADA">REPROVADA</option>
+                  <option value="PENDENTE">PENDENTE</option>
+                  <option value="STANDBY">EM ESPERA</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Sub-Motivo da Decisão</label>
+                <select
+                  id="relatorio-filtro-submotivo"
+                  value={repSubMotiveDropdown}
+                  onChange={(e) => setRepSubMotiveDropdown(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
+                    isDarkMode 
+                      ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500 font-bold' 
+                      : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900 font-bold'
+                  }`}
+                >
+                  <option value="TODOS">TODOS OS SUB-MOTIVOS</option>
+                  {subMotivosPorStatus[repStatus] && subMotivosPorStatus[repStatus].map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                  {repStatus === 'TODAS' && (
+                    <>
+                      <optgroup label="Aprovações">
+                        {subMotivosPorStatus.APROVADA.map(m => <option key={m} value={m}>{m}</option>)}
+                      </optgroup>
+                      <optgroup label="Recusas">
+                        {subMotivosPorStatus.REPROVADA.map(m => <option key={m} value={m}>{m}</option>)}
+                      </optgroup>
+                      <optgroup label="Pendências">
+                        {subMotivosPorStatus.PENDENTE.map(m => <option key={m} value={m}>{m}</option>)}
+                      </optgroup>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Analista do Sistema</label>
+                <select
+                  id="relatorio-filtro-analista"
+                  value={repAnalyst}
+                  onChange={(e) => setRepAnalyst(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
+                    isDarkMode 
+                      ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500 font-bold' 
+                      : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900 font-bold'
+                  }`}
+                >
+                  <option value="TODOS">TODOS OS ANALISTAS</option>
+                  {reportAnalysts.map(analyst => (
+                    <option key={analyst} value={analyst}>{analyst}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Busca por Palavra-chave</label>
+                <input
+                  id="relatorio-filtro-palavrachave"
+                  type="text"
+                  placeholder="Digite termo para busca livre..."
+                  value={repSubMotiveCustom}
+                  onChange={(e) => setRepSubMotiveCustom(e.target.value)}
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
+                    isDarkMode 
+                      ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500' 
+                      : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 ${
+              isDarkMode ? 'bg-slate-950/45' : 'bg-slate-50'
+            }`}>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                <span>Filtros ativos: Banco: {repBank === 'TODOS' ? 'Todos' : repBank} | Status: {repStatus === 'TODAS' ? 'Padrão Geral' : repStatus} | Analista: {repAnalyst === 'TODOS' ? 'Todos' : repAnalyst}</span>
+              </div>
+
+              <button
+                id="btn-baixar-relatorio-csv"
+                onClick={handleDownloadReportCSV}
+                disabled={reportItems.length === 0}
+                className={`w-full sm:w-auto px-6 py-3 rounded-xl font-extrabold text-[11px] uppercase flex items-center justify-center gap-2 shadow-lg duration-200 transition-all ${
+                  reportItems.length > 0 
+                    ? 'bg-blue-650 hover:bg-blue-700 bg-blue-600 text-white cursor-pointer hover:shadow-blue-600/10' 
+                    : 'bg-slate-100 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-800/60'
+                }`}
+              >
+                <Download size={14} />
+                Solicitar & Baixar CSV ({reportItems.length})
+              </button>
+            </div>
+          </div>
+        );
+
+      case 'produtividade-detalhada':
+        if (!hasPermission('viewActionsAnalystBank', { master: true, supervisor: true, analyst: true })) return null;
+        return (
+          <div className={`p-6 rounded-[2rem] border transition-all shadow-sm ${
+            isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
+              <div className="flex items-center gap-3">
+                {renderDragHandle('produtividade-detalhada')}
+                <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-indigo-950/40 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}><Users size={18} /></div>
+                <div>
+                  <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                    Produtividade Detalhada por Analista e Convênio
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Tabelas dinâmicas de volume de aprovar, pendenciar e reprovar.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className={showAnalystTable ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "max-w-3xl mx-auto"}>
+              {showAnalystTable && (
+                <div className={`rounded-3xl border shadow-sm overflow-hidden flex flex-col ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
+                  <div className={`p-6 border-b flex flex-col items-center justify-center gap-3 text-center ${isDarkMode ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50'}`}>
+                    <h3 className={`text-sm font-black uppercase tracking-tight flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                      <Users size={18} className="text-blue-600" />
+                      Ações por Analista
+                    </h3>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'}`}>Pivot Table</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className={`text-[10px] font-black text-slate-405 uppercase tracking-widest border-b ${isDarkMode ? 'bg-slate-800/30 border-slate-800' : 'bg-slate-50'}`}>
+                          <th className="px-6 py-4 text-center">Analista</th>
+                          <th className="px-4 py-4 text-center">Aprovar</th>
+                          <th className="px-4 py-4 text-center">Pendenciar</th>
+                          <th className="px-4 py-4 text-center">Reprovar</th>
+                          <th className="px-4 py-4 text-center">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
+                        {Object.entries(metrics.analystTable).length > 0 ? (
+                          Object.entries(metrics.analystTable).map(([name, data]: [string, any]) => (
+                            <tr key={name} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/50'}`}>
+                              <td className="px-6 py-5">
+                                <div className="flex items-center justify-center gap-3">
+                                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black ${isDarkMode ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
+                                    {name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span className={`font-bold text-xs ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{name}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-5 text-center text-xs font-bold text-emerald-600">{data.APROVAR}</td>
+                              <td className="px-4 py-5 text-center text-xs font-bold text-orange-600">{data.PENDENCIAR}</td>
+                              <td className="px-4 py-5 text-center text-xs font-bold text-red-600">{data.RECUSAR}</td>
+                              <td className={`px-4 py-5 text-center font-black text-xs ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{data.TOTAL}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="py-20 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sem registros no período</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className={`rounded-3xl border shadow-sm overflow-hidden flex flex-col ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
+                <div className={`p-6 border-b flex flex-col items-center justify-center gap-3 text-center ${isDarkMode ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50'}`}>
+                  <h3 className={`text-sm font-black uppercase tracking-tight flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                    <Landmark size={18} className="text-blue-600" />
+                    Ações por Convênio
+                  </h3>
+                  <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'}`}>Pivot Table</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className={`text-[10px] font-black text-slate-405 uppercase tracking-widest border-b ${isDarkMode ? 'bg-slate-800/30 border-slate-800' : 'bg-slate-50'}`}>
+                        <th className="px-6 py-4 text-center">Instituição</th>
+                        <th className="px-4 py-4 text-center">Aprovar</th>
+                        <th className="px-4 py-4 text-center">Pendenciar</th>
+                        <th className="px-4 py-4 text-center">Reprovar</th>
+                        <th className="px-4 py-4 text-center">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
+                      {Object.entries(metrics.bankTable).length > 0 ? (
+                        Object.entries(metrics.bankTable).map(([name, data]: [string, any]) => (
+                          <tr key={name} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/50'}`}>
+                            <td className="px-6 py-5 text-center">
+                              <span className={`font-bold text-xs ${isDarkMode ? 'text-slate-200' : 'text-slate-830'}`}>{name}</span>
+                            </td>
+                            <td className="px-4 py-5 text-center text-xs font-bold text-emerald-600">{data.APROVAR}</td>
+                            <td className="px-4 py-5 text-center text-xs font-bold text-orange-600">{data.PENDENCIAR}</td>
+                            <td className="px-4 py-5 text-center text-xs font-bold text-red-650">{data.RECUSAR}</td>
+                            <td className={`px-4 py-5 text-center font-black text-xs ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{data.TOTAL}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="py-20 text-center text-[10px] font-bold text-slate-404 uppercase tracking-widest">Sem dados bancários detectados</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'distribuicao-acoes':
+        if (!hasPermission('viewQtyActionsDistChart', { master: true, supervisor: false, analyst: false })) return null;
+        return (
+          <div className={`rounded-[2.5rem] p-8 border shadow-sm space-y-6 ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
+            <div className="flex flex-col items-center justify-center gap-3 text-center">
+              <h3 className={`text-lg font-black flex items-center gap-3 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                {renderDragHandle('distribuicao-acoes')}
+                <BarChart size={22} className="text-blue-600" />
+                Distribuição Quantitativa de Ações
+              </h3>
+            </div>
+            <div className="flex items-end gap-6 h-48 pt-4">
+              <BarItem label="Aprov" count={metrics.stats.approvals} color="bg-emerald-500" max={metrics.stats.total} />
+              <BarItem label="Pend" count={metrics.stats.pendencies} color="bg-orange-500" max={metrics.stats.total} />
+              <BarItem label="Reprov" count={metrics.stats.refusals} color="bg-red-500" max={metrics.stats.total} />
+              <BarItem label="Outros" count={metrics.stats.total - (metrics.stats.approvals + metrics.stats.pendencies + metrics.stats.refusals)} color={isDarkMode ? 'bg-slate-700' : 'bg-slate-200'} max={metrics.stats.total} />
+            </div>
+          </div>
+        );
+
+      case 'fraudes-evitadas': {
+        try {
+          const showFraudPreventionChart = hasPermission('viewFraudPreventionChart', { master: true, supervisor: true, analyst: false });
+          if (!showFraudPreventionChart) return null;
+
+          const fraudCounts: Record<string, number> = {
+            "Terceiro se Passando": 0,
+            "Cliente não Reconhece a Operação": 0,
+            "Campo Foto": 0,
+            "Fonte": 0,
+            "Formatação": 0,
+            "Sobreposição de Foto": 0,
+            "Informações diferentes da Receita Federal": 0
+          };
+
+          if (Array.isArray(history)) {
+            history.forEach(log => {
+              if (log && log.decisao === 'REJECTED') {
+                if (log.fraudSubMotive && log.fraudSubMotive in fraudCounts) {
+                  fraudCounts[log.fraudSubMotive]++;
+                } else if (log.motivo) {
+                  const motiveText = log.motivo;
+                  Object.keys(fraudCounts).forEach(subMotive => {
+                    if (motiveText.includes(subMotive)) {
+                      fraudCounts[subMotive]++;
+                    }
+                  });
+                }
+              }
+            });
+          }
+
+          const chartData = Object.entries(fraudCounts).map(([subMotive, total]) => ({
+            subMotive,
+            total
+          }));
+
+          const totalFraudsEvitadas = Object.values(fraudCounts).reduce((a, b) => a + b, 0);
+
+          return (
+            <div className={`p-6 rounded-[2.5rem] border transition-all shadow-sm ${
+              isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
+            }`}>
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
+                <div className="flex items-center gap-3">
+                  {renderDragHandle('fraudes-evitadas')}
+                  <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-indigo-950/40 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}><ShieldCheck size={18} /></div>
+                  <div>
+                    <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                      Indicadores de Fraudes Evitadas
+                    </h3>
+                    <p className="text-[11px] text-slate-400 font-medium font-bold uppercase tracking-tight mt-0.5">
+                      Detalhamento técnico dos sub-motivos de irregularidade identificados
+                    </p>
+                  </div>
+                </div>
+                <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  isDarkMode ? 'bg-red-950/40 text-red-400 border border-red-500/20' : 'bg-red-50 text-red-750 border border-red-100'
+                }`}>
+                  Total de Fraudes Evitadas: {totalFraudsEvitadas}
+                </div>
+              </div>
+
+              {totalFraudsEvitadas === 0 ? (
+                <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-xs font-semibold gap-2">
+                  <ShieldCheck size={20} className="text-slate-400" />
+                  Nenhuma suspeita de fraude registrada no histórico de logs.
+                </div>
+              ) : (
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsBarChart 
+                      data={chartData} 
+                      layout="vertical"
+                      margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} horizontal={false} vertical={true} />
+                      <XAxis 
+                        type="number"
+                        tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
+                        stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        allowDecimals={false}
+                      />
+                      <YAxis 
+                        type="category"
+                        dataKey="subMotive" 
+                        tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
+                        stroke={isDarkMode ? '#475569' : '#cbd5e1'}
+                        width={215}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
+                          borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          color: isDarkMode ? '#ffffff' : '#1e293b',
+                          fontWeight: 'bold'
+                        }}
+                      />
+                      <Bar name="Fraudes Evitadas" dataKey="total" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={16} />
+                    </RechartsBarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          );
+        } catch (err: any) {
+          console.error("Error rendering fraud prevention card:", err);
+          return (
+            <div className="p-6 rounded-[2.5rem] border border-red-500 bg-red-550/10 text-red-500">
+              <h3 className="font-bold">Error rendering fraud prevention card</h3>
+              <p className="text-xs">{err?.message || String(err)}</p>
+              <pre className="text-[10px] mt-2 overflow-auto max-h-40">{err?.stack}</pre>
+            </div>
+          );
+        }
+      }
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="p-8 space-y-10 animate-in fade-in duration-700 max-w-screen-2xl mx-auto">
       <div className="header-riskflow">
@@ -925,7 +2293,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="contador-quantidade">TOTAL: {metrics.stats.total}</div>
       </div>
 
-      {/* 🔔 Widget de Notificações de Novas Bases */}
       <AnimatePresence>
         {newBases.length > 0 && (
           <motion.div
@@ -939,9 +2306,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 : 'bg-indigo-50/50 border-indigo-200/60 text-indigo-950 shadow-indigo-100/20'
             }`}
           >
-            {/* Visual gradient accent */}
             <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500" />
-
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-indigo-200/30 dark:border-indigo-500/10">
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-700'}`}>
@@ -986,7 +2351,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    {/* Bank Name as Badge */}
                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
                       isDarkMode ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-700'
                     }`}>
@@ -1004,7 +2368,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-4 self-end md:self-auto">
-                    {/* Total proposals imported */}
                     <div className="text-right">
                       <div className="text-xs font-black text-emerald-600 dark:text-emerald-400">
                         +{base.newCount} novas propostas
@@ -1033,1105 +2396,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </AnimatePresence>
 
-      {/* 👤 PRODUÇÃO INDIVIDUAL DIÁRIA E MENSAL DO PRÓPRIO LOGIN (Exclusivo Analista / Disponível a todos) */}
-      <div className={`p-6 rounded-[2rem] border transition-all shadow-sm ${
-        isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">👤</span>
-            <div>
-              <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-                Minha Produção Individual
-              </h3>
-              <p className="text-[11px] text-slate-400 font-medium font-bold uppercase tracking-tight mt-0.5">
-                Métricas de desempenho pessoal do login ativo: <span className="text-indigo-500 font-mono font-black">{currentUser?.username || 'Analista'}</span>
-              </p>
-            </div>
-          </div>
-          <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-            isDarkMode ? 'bg-indigo-950/40 text-indigo-400 border border-indigo-500/20' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-          }`}>
-            Perfil: {userRole === 'Master' ? 'Administrador' : userRole}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Box 1: Produção Diária (D0) */}
-          <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-950/40 border-slate-850' : 'bg-slate-50/50 border-slate-200/50'}`}>
-            <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <span>📅</span> Produção Diária (Hoje)
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
-                <div className="text-2xl font-black text-slate-800 dark:text-white">{performanceMetrics.individual.total}</div>
-                <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Processadas</div>
-              </div>
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
-                <div className="text-2xl font-black text-emerald-500">{performanceMetrics.individual.approvals}</div>
-                <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Aprovadas</div>
-              </div>
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
-                <div className="text-2xl font-black text-orange-500">{performanceMetrics.individual.pending}</div>
-                <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Pendenciadas</div>
-              </div>
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
-                <div className="text-2xl font-black text-red-500">{performanceMetrics.individual.rejected}</div>
-                <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Reprovadas</div>
-              </div>
-            </div>
-            <div className="mt-4 pt-3 border-t border-dashed border-slate-150 dark:border-slate-800 flex justify-between items-center text-[10px]">
-              <span className="text-slate-450 font-bold uppercase text-[9px]">Taxa de Aprovação (Hoje):</span>
-              <span className="font-mono font-black text-emerald-500">{performanceMetrics.individual.approvalRate}%</span>
-            </div>
-            <div className="mt-1 flex justify-between items-center text-[10px]">
-              <span className="text-slate-450 font-bold uppercase text-[9px]">SLA Médio de Atendimento:</span>
-              <span className="font-mono font-black text-indigo-400">
-                {performanceMetrics.individual.avgSla > 0 ? formatMsToTime(performanceMetrics.individual.avgSla) : "---"}
-              </span>
-            </div>
-          </div>
-
-          {/* Box 2: Produção Mensal (Mês Corrente) */}
-          <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-950/40 border-slate-850' : 'bg-slate-50/50 border-slate-200/50'}`}>
-            <h4 className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <span>📅</span> Produção Mensal (Mês)
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-105 dark:border-slate-800/80 text-center">
-                <div className="text-2xl font-black text-slate-800 dark:text-white">{performanceMetrics.individualMonth.total}</div>
-                <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Processadas</div>
-              </div>
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-105 dark:border-slate-800/80 text-center">
-                <div className="text-2xl font-black text-emerald-500">{performanceMetrics.individualMonth.approvals}</div>
-                <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Aprovadas</div>
-              </div>
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-105 dark:border-slate-800/80 text-center">
-                <div className="text-2xl font-black text-orange-500">{performanceMetrics.individualMonth.pending}</div>
-                <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Pendenciadas</div>
-              </div>
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-105 dark:border-slate-800/80 text-center">
-                <div className="text-2xl font-black text-red-500">{performanceMetrics.individualMonth.rejected}</div>
-                <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider mt-1">Reprovadas</div>
-              </div>
-            </div>
-            <div className="mt-4 pt-3 border-t border-dashed border-slate-150 dark:border-slate-800 flex justify-between items-center text-[10px]">
-              <span className="text-slate-450 font-bold uppercase text-[9px]">Taxa de Aprovação (Mês):</span>
-              <span className="font-mono font-black text-emerald-500">{performanceMetrics.individualMonth.approvalRate}%</span>
-            </div>
-            <div className="mt-1 flex justify-between items-center text-[10px]">
-              <span className="text-slate-450 font-bold uppercase text-[9px]">SLA Médio do Período:</span>
-              <span className="font-mono font-black text-purple-400">
-                {performanceMetrics.individualMonth.avgSla > 0 ? formatMsToTime(performanceMetrics.individualMonth.avgSla) : "---"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ⚡ Resumo de Performance do Dia */}
-      {(currentUser?.permissions?.viewDailyPerfSummary !== false) && (
-        <div className={`p-6 rounded-[2rem] border transition-all shadow-sm ${
-          isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">⚡</span>
-            <div>
-              <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-                Resumo de Performance do Dia
-              </h3>
-              <p className="text-[11px] text-slate-400 font-medium">
-                Métricas de propostas processadas pelos analistas hoje.
-              </p>
-            </div>
-          </div>
-          {currentUser && (
-            <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
-              isDarkMode ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
-            }`}>
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-              Analista Logado: <span className="font-mono">{currentUser.username}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Card 1: Total Processadas */}
-          <div className={`p-5 rounded-2xl border transition-all ${
-            isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
-          }`}>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Propostas Processadas</p>
-            <div className="flex items-baseline gap-2">
-              <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-905'}`}>
-                {performanceMetrics.individual.total}
-              </span>
-              <span className="text-xs text-slate-400 font-semibold">{performanceMetrics.individual.total === 1 ? 'proposta' : 'propostas'} hoje</span>
-            </div>
-            
-            <div className="mt-3 pt-3 border-t border-dashed dark:border-slate-800/80 border-slate-200/60 flex items-center justify-between text-[11px]">
-              <span className="text-slate-450 font-bold uppercase text-[9px] tracking-wide">Fila de Análise:</span>
-              <span className={`font-black font-mono ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                {performanceMetrics.general.total} no total
-              </span>
-            </div>
-          </div>
-
-          {/* Card 2: Taxa de Aprovação */}
-          <div className={`p-5 rounded-2xl border transition-all ${
-            isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
-          }`}>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Taxa de Aprovação</p>
-            <div className="flex items-baseline gap-2">
-              <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-905'}`}>
-                {performanceMetrics.individual.approvalRate}%
-              </span>
-              <span className="text-xs text-slate-400 font-semibold">de aprovações</span>
-            </div>
-            
-            <div className="mt-3 pt-3 border-t border-dashed dark:border-slate-800/80 border-slate-200/60 flex items-center justify-between text-[11px]">
-              <span className="text-slate-450 font-bold uppercase text-[9px] tracking-wide">Média Geral:</span>
-              <span className={`font-black font-mono ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                {performanceMetrics.general.approvalRate}%
-              </span>
-            </div>
-          </div>
-
-          {/* Card 3: Tempo de Atendimento (SLA) */}
-          <div className={`p-5 rounded-2xl border transition-all ${
-            isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
-          }`}>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">SLA / Tempo de Atendimento</p>
-            <div className="flex items-baseline gap-2">
-              <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-905'}`}>
-                {performanceMetrics.individual.avgSla > 0 ? formatMsToTime(performanceMetrics.individual.avgSla) : "---"}
-              </span>
-              <span className="text-xs text-slate-400 font-semibold">médio por análise</span>
-            </div>
-            
-            <div className="mt-3 pt-3 border-t border-dashed dark:border-slate-800/80 border-slate-200/60 flex items-center justify-between text-[11px]">
-              <span className="text-slate-450 font-bold uppercase text-[9px] tracking-wide">Tempo Médio Geral:</span>
-              <span className={`font-black font-mono ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                {performanceMetrics.general.avgSla > 0 ? formatMsToTime(performanceMetrics.general.avgSla) : "---"}
-              </span>
-            </div>
-          </div>
-
-          {/* Card 4: Ranking Top 3 Analistas do Dia */}
-          <div className={`p-5 rounded-2xl border transition-all ${
-            isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
-          }`}>
-            <div className="flex items-center justify-between mb-2 pb-1 border-b dark:border-slate-800/80 border-slate-150">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🏆 Top 3 Analistas (Hoje)</p>
-              <span className={`text-[9.5px] font-black font-mono px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
-                Ranking
-              </span>
-            </div>
-            
-            {topAnalystsToday.length === 0 ? (
-              <div className="h-[76px] flex items-center justify-center text-[10px] font-semibold text-slate-400 text-center uppercase tracking-wide">
-                Nenhuma proposta finalizada<br />hoje
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {topAnalystsToday.map((analyst, index) => {
-                  const medals = ["🥇", "🥈", "🥉"];
-                  return (
-                    <div key={analyst.name} className="flex items-center justify-between text-xs py-0.5 first:pt-0 last:pb-0 border-b border-dashed border-slate-150 dark:border-slate-800 last:border-0">
-                      <div className="flex items-center gap-1.5 truncate max-w-[110px]">
-                        <span className="text-sm leading-none">{medals[index]}</span>
-                        <span className={`font-black truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`} title={analyst.name}>
-                          {analyst.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 font-mono text-[11px]">
-                        <span className={`font-black ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>{analyst.total}</span>
-                        <span className="text-[9px] text-slate-400 font-sans font-medium" title="Sendo: (Aprovações / Pendenciadas / Recusadas)">
-                          ({analyst.approvals}A/{analyst.pendencies}P/{analyst.recusals}R)
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* 📊 Relatório Gerencial de Produção por Período */}
-      {viewSupervisorResources && (currentUser?.permissions?.viewProductionReportPeriod !== false) && (
-        <div className={`p-6 rounded-[2rem] border transition-all shadow-sm ${
-          isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">📊</span>
-            <div>
-              <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-                Relatório de Produção por Período
-              </h3>
-              <p className="text-[11px] text-slate-400 font-medium">
-                Métricas de desempenho individual e da equipe no período selecionado.
-              </p>
-            </div>
-          </div>
-
-          {/* Date range inputs */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase text-slate-400">De:</span>
-              <input 
-                type="date"
-                value={prodStartDate}
-                onChange={(e) => setProdStartDate(e.target.value)}
-                className={`px-3 py-1.5 rounded-xl border text-[11px] font-black outline-none transition-all ${
-                  isDarkMode ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-slate-900'
-                }`}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase text-slate-400">Até:</span>
-              <input 
-                type="date"
-                value={prodEndDate}
-                onChange={(e) => setProdEndDate(e.target.value)}
-                className={`px-3 py-1.5 rounded-xl border text-[11px] font-black outline-none transition-all ${
-                  isDarkMode ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-slate-900'
-                }`}
-              />
-            </div>
-
-            <button
-              onClick={handleDownloadProductionCSV}
-              disabled={!!productionReportData.error}
-              className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all ${
-                productionReportData.error 
-                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-200 dark:shadow-none'
-              }`}
-            >
-              <Download size={12} />
-              Exportar XLS/CSV
-            </button>
-          </div>
-        </div>
-
-        {productionReportData.error ? (
-          <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 rounded-2xl text-[11px] font-bold">
-            ⚠️ {productionReportData.error}
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Team KPIs for Selected Period */}
-            {productionReportData.totals && (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Processadas no Período</p>
-                  <p className={`text-lg font-black mt-1 ${isDarkMode ? 'text-white' : 'text-slate-850'}`}>{productionReportData.totals.total}</p>
-                </div>
-                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-emerald-50/40 border-slate-150'}`}>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Taxa de Aprovação</p>
-                  <div className="flex items-baseline gap-1.5 mt-1">
-                    <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">{productionReportData.totals.approvalRate}%</p>
-                    <span className="text-[10px] text-slate-400">({productionReportData.totals.totalApprovals})</span>
-                  </div>
-                </div>
-                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-orange-50/40 border-slate-150'}`}>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Taxa de Pendência</p>
-                  <div className="flex items-baseline gap-1.5 mt-1">
-                    <p className="text-lg font-black text-orange-600 dark:text-orange-400">{productionReportData.totals.pendingRate}%</p>
-                    <span className="text-[10px] text-slate-400">({productionReportData.totals.pendencies})</span>
-                  </div>
-                </div>
-                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-red-50/40 border-slate-150'}`}>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Taxa de Recusa</p>
-                  <div className="flex items-baseline gap-1.5 mt-1">
-                    <p className="text-lg font-black text-red-600 dark:text-red-400">{productionReportData.totals.recusalRate}%</p>
-                    <span className="text-[10px] text-slate-400">({productionReportData.totals.recusals})</span>
-                  </div>
-                </div>
-                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-950/30 border-slate-800' : 'bg-purple-50/40 border-slate-150'}`}>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">SLA Médio Comercial</p>
-                  <p className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1">
-                    {productionReportData.totals.avgSla > 0 ? formatMsToTime(productionReportData.totals.avgSla) : "---"}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Performance Table */}
-            <div className="overflow-x-auto rounded-2xl border dark:border-slate-800 border-slate-150">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className={`border-b dark:border-slate-800 border-slate-150 text-[9px] font-black uppercase tracking-wider ${
-                    isDarkMode ? 'bg-slate-950/20 text-slate-450' : 'bg-slate-100/60 text-slate-500'
-                  }`}>
-                    <th className="p-4">Analista</th>
-                    <th className="p-4 text-center">Processados</th>
-                    <th className="p-4 text-center">Aprovação %</th>
-                    <th className="p-4 text-center">Pendências %</th>
-                    <th className="p-4 text-center">Reprovações %</th>
-                    <th className="p-4 text-center">Contato</th>
-                    <th className="p-4">Detalhamento das Aprovações</th>
-                    <th className="p-4 text-right">SLA Médio</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y text-xs ${isDarkMode ? 'divide-slate-800' : 'divide-slate-150'}`}>
-                  {productionReportData.rows.map((row, idx) => (
-                    <tr 
-                      key={row.analyst}
-                      className={idx % 2 === 0 ? '' : isDarkMode ? 'bg-slate-950/20' : 'bg-slate-50/30'}
-                    >
-                      <td className="p-4 font-bold max-w-[140px] truncate">{row.analyst}</td>
-                      <td className="p-4 font-black font-mono text-center">{row.total}</td>
-                      <td className="p-4 font-black font-mono text-center text-emerald-600 dark:text-emerald-400">
-                        {row.approvalRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({row.totalApprovals})</span>
-                      </td>
-                      <td className="p-4 font-black font-mono text-center text-orange-600 dark:text-orange-400">
-                        {row.pendingRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({row.pendencies})</span>
-                      </td>
-                      <td className="p-4 font-black font-mono text-center text-red-600 dark:text-red-400">
-                        {row.recusalRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({row.recusals})</span>
-                      </td>
-                      <td className="p-4 font-black font-mono text-center text-purple-600 dark:text-purple-400">
-                        {row.contactMesaRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({row.contactMesa})</span>
-                      </td>
-                      <td className="p-4 space-y-1">
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
-                          <div className="flex items-center justify-between text-slate-500">
-                            <span>📞 Contato / Video:</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
-                              {row.cvCount} ({row.cvRate}%)
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-slate-500">
-                            <span>📄 Documental:</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
-                              {row.docCount} ({row.docRate}%)
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-slate-500">
-                            <span>🤝 De Acordo:</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
-                              {row.daCount} ({row.daRate}%)
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-slate-500">
-                            <span>⚡ Aprovação Automática:</span>
-                            <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                              {row.ftCount} ({row.ftRate}%)
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 font-bold font-mono text-right text-slate-500">
-                        {row.avgSla > 0 ? formatMsToTime(row.avgSla) : "---"}
-                      </td>
-                    </tr>
-                  ))}
-
-                  {/* Table Total Equipe Summary Row */}
-                  {productionReportData.totals && (
-                    <tr className={`font-black ${
-                      isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-indigo-50/50 text-slate-800'
-                    }`}>
-                      <td className="p-4 uppercase tracking-tight text-[11px] font-black">🌟 Total Equipe</td>
-                      <td className="p-4 text-center font-mono text-[13px]">{productionReportData.totals.total}</td>
-                      <td className="p-4 text-center font-mono text-[13px] text-emerald-600 dark:text-emerald-400">
-                        {productionReportData.totals.approvalRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({productionReportData.totals.totalApprovals})</span>
-                      </td>
-                      <td className="p-4 text-center font-mono text-[13px] text-orange-600 dark:text-orange-400 font-bold font-mono">
-                        {productionReportData.totals.pendingRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({productionReportData.totals.pendencies})</span>
-                      </td>
-                      <td className="p-4 text-center font-mono text-[13px] text-red-600 dark:text-red-400 font-bold font-mono">
-                        {productionReportData.totals.recusalRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({productionReportData.totals.recusals})</span>
-                      </td>
-                      <td className="p-4 text-center font-mono text-[13px] text-purple-600 dark:text-purple-400 font-bold font-mono">
-                        {productionReportData.totals.contactMesaRate}% <span className="text-[10px] text-slate-400 font-medium font-sans">({productionReportData.totals.contactMesa})</span>
-                      </td>
-                      <td className="p-4">
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-bold">
-                          <div className="flex items-center justify-between text-slate-500">
-                            <span>📞 Contato / Video:</span>
-                            <span className="text-slate-800 dark:text-white font-mono">
-                              {productionReportData.totals.cvCount} ({productionReportData.totals.cvRate}%)
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-slate-500">
-                            <span>📄 Documental:</span>
-                            <span className="text-slate-800 dark:text-white font-mono">
-                              {productionReportData.totals.docCount} ({productionReportData.totals.docRate}%)
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-slate-500">
-                            <span>🤝 De Acordo:</span>
-                            <span className="text-slate-800 dark:text-white font-mono">
-                              {productionReportData.totals.daCount} ({productionReportData.totals.daRate}%)
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-slate-500">
-                            <span>⚡ Aprovação Automática:</span>
-                            <span className="text-emerald-600 dark:text-emerald-400 font-mono">
-                              {productionReportData.totals.ftCount} ({productionReportData.totals.ftRate}%)
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-300">
-                        {productionReportData.totals.avgSla > 0 ? formatMsToTime(productionReportData.totals.avgSla) : "---"}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            
-            <div className="p-4 rounded-xl border dark:border-slate-800/80 border-slate-150 bg-slate-50/50 dark:bg-slate-900/10 text-[10px] text-slate-400 leading-relaxed font-semibold">
-              💡 <b>Conceito de Análise:</b> O SLA é medido a partir da diferença de tempo entre o log "ASSUMIU" e o parecer conclusivo. Os percentuais acima são calculados sobre as <b>propostas aprovadas</b> de cada analista para acompanhamento tático.
-            </div>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* 📈 Gráficos de Desempenho e Produtividade (Gerencial / Reuniões) */}
-      {viewSupervisorResources && !productionReportData.error && (currentUser?.permissions?.viewPerformanceChartsPeriod !== false) && (
-        <div className={`p-6 rounded-[2rem] border transition-all shadow-sm space-y-6 ${
-          isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
-            <div className="flex items-center gap-3">
-              <span className="text-xl">📊</span>
-              <div>
-                <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-                  Painel Gráfico de Performance e Produtividade do Período
-                </h3>
-                <p className="text-[11px] text-slate-400 font-medium">
-                  Análise de tendências cronológicas, identificação de gargalos de análise, e distribuição individual/equipe para reuniões de feedback.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                Período: {prodStartDate} - {prodEndDate}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Gráfico 1 - Tendência Relativa */}
-            <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
-              <div className="mb-4">
-                <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                  📈 Evolução Diária (Aprovações vs. Recusas)
-                </h4>
-                <p className="text-[10px] text-slate-400 font-medium">
-                  Comportamento e volume de deferidos e indeferidos ao longo dos dias selecionados.
-                </p>
-              </div>
-              
-              {chartTrendData.length === 0 ? (
-                <div className="h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
-                  Nenhum dado histórico encontrado para a evolução diária no período.
-                </div>
-              ) : (
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorApprovals" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorRecusals" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
-                      <XAxis 
-                        dataKey="name" 
-                        tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
-                        stroke={isDarkMode ? '#475569' : '#cbd5e1'}
-                      />
-                      <YAxis 
-                        tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
-                        stroke={isDarkMode ? '#475569' : '#cbd5e1'}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
-                          borderColor: isDarkMode ? '#475569' : '#cbd5e1',
-                          borderRadius: '12px',
-                          fontSize: '11px',
-                          color: isDarkMode ? '#ffffff' : '#1e293b',
-                          fontWeight: 'bold'
-                        }}
-                      />
-                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
-                      <Area name="Aprovações" type="monotone" dataKey="Aprovações" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorApprovals)" />
-                      <Area name="Recusas" type="monotone" dataKey="Recusas" stroke="#ef4444" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRecusals)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-
-            {/* Gráfico 2 - Comparativo Individual e Equipe */}
-            <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
-              <div className="mb-4">
-                <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                  👥 Produtividade e Pareceres por Analista
-                </h4>
-                <p className="text-[10px] text-slate-400 font-medium">
-                  Resultados individuais detalhados para identificação de gargalos de desempenho e tomada de decisão.
-                </p>
-              </div>
-
-              {productionReportData.rows.length === 0 ? (
-                <div className="h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
-                  Nenhum analista com produção registrada no período selecionado.
-                </div>
-              ) : (
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsBarChart 
-                      data={productionReportData.rows} 
-                      margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
-                      <XAxis 
-                        dataKey="analyst" 
-                        tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
-                        stroke={isDarkMode ? '#475569' : '#cbd5e1'}
-                      />
-                      <YAxis 
-                        tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
-                        stroke={isDarkMode ? '#475569' : '#cbd5e1'}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
-                          borderColor: isDarkMode ? '#475569' : '#cbd5e1',
-                          borderRadius: '12px',
-                          fontSize: '11px',
-                          color: isDarkMode ? '#ffffff' : '#1e293b',
-                          fontWeight: 'bold'
-                        }}
-                      />
-                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
-                      <Bar name="Aprovações" dataKey="totalApprovals" fill="#10b981" radius={[4, 4, 0, 0]} />
-                      <Bar name="Pendências" dataKey="pendencies" fill="#f97316" radius={[4, 4, 0, 0]} />
-                      <Bar name="Reprovações" dataKey="recusals" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                    </RechartsBarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Análise de Gargalos Consultiva */}
-          <div className={`p-4 rounded-xl border flex flex-col md:flex-row gap-4 justify-between items-start md:items-center ${
-            isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-indigo-50/20 border-indigo-100 dark:border-indigo-900/40'
-          }`}>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1">
-                🔎 DIAGNÓSTICO DE FLUXO (GARGALOS)
-              </span>
-              <p className={`text-[11px] font-medium leading-relaxed ${isDarkMode ? 'text-slate-350' : 'text-slate-600'}`}>
-                {productionReportData.totals && productionReportData.totals.total > 0 ? (
-                  <>
-                    A equipe operou <b>{productionReportData.totals.total}</b> propostas no sistema entre <b>{prodStartDate}</b> e <b>{prodEndDate}</b>.
-                    A taxa média de aprovação foi de <b className="text-emerald-500">{productionReportData.totals.approvalRate}%</b>, com <b className="text-orange-500">{productionReportData.totals.pendingRate}% de pendências</b> e <b className="text-red-500">{productionReportData.totals.recusalRate}% de reprovações</b>. 
-                    {productionReportData.totals.pendingRate > 20 ? (
-                      " Gargalo Identificado: A alta proporção de pendências (superior a 20%) sugere ineficiência no recolhimento ou qualidade de envio dos documentos por parte dos parceiros. Recomendamos melhorar a qualidade dos arquivos enviados antes da submissão no sistema."
-                    ) : (
-                      " Indicadores Saudáveis: O fluxo de aprovação é contínuo e equilibrado. Contatos e decisões de aprovação automática estão operando de acordo com as metas."
-                    )}
-                  </>
-                ) : (
-                  "Nenhuma proposta registrada no período selecionado."
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 📊 Distribuição de Demandas por Segmento (Convênio & Produto) */}
-      <div className={`p-6 rounded-[2rem] border transition-all shadow-sm space-y-6 ${
-        isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-dashed dark:border-slate-800 border-slate-150">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">📊</span>
-            <div>
-              <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-                Distribuição de Demandas por Segmento (Convênio & Produto)
-              </h3>
-              <p className="text-[11px] text-slate-400 font-medium">
-                Análise comparativa das propostas por convênio e produto para identificação de maiores demandas de análise.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-full uppercase tracking-wider">
-              Total sob Análise: {demandDistributions.totalProposals} Propostas
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Gráfico 1 - Convênios */}
-          <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
-            <div className="mb-4">
-              <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                🏢 Concentração por Categoria de Convênio (INSS vs SIAPE vs PRIVADO)
-              </h4>
-              <p className="text-[10px] text-slate-400 font-medium">
-                Volume atual de propostas de acordo com a categoria de convênio mapeada.
-              </p>
-            </div>
-
-            {demandDistributions.covenantData.length === 0 ? (
-              <div className="h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
-                Nenhuma proposta encontrada para convênios.
-              </div>
-            ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart 
-                    data={demandDistributions.covenantData} 
-                    margin={{ top: 10, right: 10, left: -25, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
-                    <XAxis 
-                      dataKey="name" 
-                      tick={{ fill: '#94a3b8', fontSize: 8, fontWeight: 'bold' }} 
-                      stroke={isDarkMode ? '#475569' : '#cbd5e1'}
-                    />
-                    <YAxis 
-                      tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
-                      stroke={isDarkMode ? '#475569' : '#cbd5e1'}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
-                        borderColor: isDarkMode ? '#475569' : '#cbd5e1',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        color: isDarkMode ? '#ffffff' : '#1e293b',
-                        fontWeight: 'bold'
-                      }}
-                    />
-                    <Bar name="Volume" dataKey="Volume" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* Gráfico 2 - Produtos */}
-          <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-150'}`}>
-            <div className="mb-4">
-              <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                🏷️ Concentração por Produto (NOVO vs REFIN vs Cartão vs SAQUE COMPLEMENTAR)
-              </h4>
-              <p className="text-[10px] text-slate-400 font-medium">
-                Distribuição das demandas por tipo de produto.
-              </p>
-            </div>
-
-            {demandDistributions.productData.length === 0 ? (
-              <div className="h-64 flex items-center justify-center text-slate-400 text-xs font-semibold">
-                Nenhuma proposta encontrada para produtos.
-              </div>
-            ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart 
-                    data={demandDistributions.productData} 
-                    margin={{ top: 10, right: 10, left: -25, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
-                    <XAxis 
-                      dataKey="name" 
-                      tick={{ fill: '#94a3b8', fontSize: 8, fontWeight: 'bold' }} 
-                      stroke={isDarkMode ? '#475569' : '#cbd5e1'}
-                    />
-                    <YAxis 
-                      tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 'bold' }} 
-                      stroke={isDarkMode ? '#475569' : '#cbd5e1'}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', 
-                        borderColor: isDarkMode ? '#475569' : '#cbd5e1',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        color: isDarkMode ? '#ffffff' : '#1e293b',
-                        fontWeight: 'bold'
-                      }}
-                    />
-                    <Bar name="Volume" dataKey="Volume" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Análise Industrial do Perfil de Carteira */}
-        <div className={`p-4 rounded-xl border flex flex-col md:flex-row gap-4 justify-between items-start md:items-center ${
-          isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-indigo-50/20 border-indigo-100 dark:border-indigo-900/40'
-        }`}>
-          <div className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1">
-              💡 INSIGHT DE MAPEAMENTO DE PROPOSTAS
-            </span>
-            <p className={`text-[11px] font-medium leading-relaxed ${isDarkMode ? 'text-slate-350' : 'text-slate-600'}`}>
-              {demandDistributions.totalProposals > 0 ? (
-                <>
-                  A maior concentração de convênios atualmente está no segmento <b className="text-blue-500">{demandDistributions.covenantData[0]?.name || 'N/A'}</b> com <b>{demandDistributions.covenantData[0]?.Volume || 0} propostas</b>. 
-                  No desdobramento de produtos, a maior demanda reside em <b className="text-purple-500">{demandDistributions.productData[0]?.name || 'N/A'}</b> (responsável por <b>{demandDistributions.productData[0]?.Volume || 0} propostas</b>). 
-                  Supervisores devem alinhar recursos analíticos para equilibrar esses fluxos.
-                </>
-              ) : (
-                "Não há propostas registradas para o banco selecionado."
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 📈 Resumo de Atividade (KPIs GERAIS) */}
-      {viewAdminResources && (currentUser?.permissions?.viewActivitySummaryGov !== false) && (
-        <div className="space-y-6">
-          <div className="flex flex-col items-center justify-center gap-4 text-center">
-              <h2 className={`text-2xl font-black tracking-tight flex items-center gap-3 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-              <TrendingUp size={28} className="text-blue-600" />
-              📈 Resumo de Atividade
-              </h2>
-              <div className="flex items-center gap-2">
-                  <Filter size={16} className="text-slate-400" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">BI Dashboard V18</span>
-              </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <KpiMetric title="Total de Ações" value={metrics.stats.total} color="blue" icon={<BarChart3 size={24} />} isDarkMode={isDarkMode} />
-            <KpiMetric title="Aprovações ✅" value={metrics.stats.approvals} color="emerald" icon={<CheckCircle2 size={24} />} isDarkMode={isDarkMode} />
-            <KpiMetric title="Pendências 🔴" value={metrics.stats.pendencies} color="orange" icon={<AlertTriangle size={24} />} isDarkMode={isDarkMode} />
-            <KpiMetric title="Reprovações ✖️" value={metrics.stats.refusals} color="red" icon={<XCircle size={24} />} isDarkMode={isDarkMode} />
-          </div>
-        </div>
-      )}
-
-      {/* Filtros _ Laterais Estilo Sidebar Streamlit */}
-      <div className={`rounded-[2rem] border p-6 shadow-sm space-y-4 ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
-        <div className="flex items-center gap-3">
-            <Filter size={18} className="text-slate-400" />
-            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Filtros de Relatório</h3>
-        </div>
-        <div className="flex flex-wrap gap-2">
-            <button 
-                onClick={() => setSelectedBancos([])}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all border ${selectedBancos.length === 0 ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-            >
-                Todos os Bancos
-            </button>
-            {availableBanks.map(bank => (
-                <button 
-                    key={bank}
-                    onClick={() => toggleBankFilter(bank)}
-                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all border ${selectedBancos.includes(bank) ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200' : isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                >
-                    {bank}
-                </button>
-            ))}
-        </div>
-      </div>
-
-      {/* 📊 Relatório Operacional em CSV Card */}
-      {viewSupervisorResources && (currentUser?.permissions?.viewOperationalReportCsv !== false) && (
-      <div id="solicitacao_relatorio_operacional" className={`rounded-[2rem] border p-8 shadow-sm space-y-6 ${isDarkMode ? 'bg-slate-900/40 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-2xl ${isDarkMode ? 'bg-blue-500/10 text-blue-404' : 'bg-blue-50 text-blue-604'}`}>
-              <FileText size={22} />
-            </div>
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-tight">Relatório Operacional (Exportação CSV)</h3>
-              <p className="text-[11px] text-slate-400 font-medium">Extraia e filtre decisões por banco, status da proposta e sub-motivo específico.</p>
-            </div>
-          </div>
-          
-          <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-            reportItems.length > 0 
-              ? 'bg-emerald-500/10 text-emerald-500' 
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-          }`}>
-            Registros Selecionados: {reportItems.length}
-          </div>
-        </div>
-
-        {/* Filters Selectors Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* 1. Banco Selector */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Banco Emissor</label>
-            <select
-              id="relatorio-filtro-banco"
-              value={repBank}
-              onChange={(e) => setRepBank(e.target.value)}
-              className={`w-full px-4 py-3 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
-                isDarkMode 
-                  ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500 font-bold' 
-                  : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900 font-bold'
-              }`}
-            >
-              <option value="TODOS">TODOS OS BANCOS</option>
-              {reportBanks.map(bank => (
-                <option key={bank} value={bank}>{bank}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 2. Finalizacao Status Selector */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Finalização (Status)</label>
-            <select
-              id="relatorio-filtro-finalizacao"
-              value={repStatus}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              className={`w-full px-4 py-3 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
-                isDarkMode 
-                  ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500 font-bold' 
-                  : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900 font-bold'
-              }`}
-            >
-              <option value="TODAS">TODAS AS FINALIZAÇÕES</option>
-              <option value="APROVADA">APROVADA (SISTEMA & ANALISTA)</option>
-              <option value="REPROVADA">REPROVADA</option>
-              <option value="PENDENTE">PENDENTE</option>
-              <option value="STANDBY">EM ESPERA</option>
-            </select>
-          </div>
-
-          {/* 3. Predefined Sub Motivo Selector */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Sub-Motivo da Decisão</label>
-            <select
-              id="relatorio-filtro-submotivo"
-              value={repSubMotiveDropdown}
-              onChange={(e) => setRepSubMotiveDropdown(e.target.value)}
-              className={`w-full px-4 py-3 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
-                isDarkMode 
-                  ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500 font-bold' 
-                  : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900 font-bold'
-              }`}
-            >
-              <option value="TODOS">TODOS OS SUB-MOTIVOS</option>
-              {subMotivosPorStatus[repStatus] && subMotivosPorStatus[repStatus].map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-              {/* If "Todas" is selected, give a nice subset of all options organized */}
-              {repStatus === 'TODAS' && (
-                <>
-                  <optgroup label="Aprovações">
-                    {subMotivosPorStatus.APROVADA.map(m => <option key={m} value={m}>{m}</option>)}
-                  </optgroup>
-                  <optgroup label="Recusas">
-                    {subMotivosPorStatus.REPROVADA.map(m => <option key={m} value={m}>{m}</option>)}
-                  </optgroup>
-                  <optgroup label="Pendências">
-                    {subMotivosPorStatus.PENDENTE.map(m => <option key={m} value={m}>{m}</option>)}
-                  </optgroup>
-                </>
-              )}
-            </select>
-          </div>
-
-          {/* 4. Analista Selector */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Analista do Sistema</label>
-            <select
-              id="relatorio-filtro-analista"
-              value={repAnalyst}
-              onChange={(e) => setRepAnalyst(e.target.value)}
-              className={`w-full px-4 py-3 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
-                isDarkMode 
-                  ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500 font-bold' 
-                  : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900 font-bold'
-              }`}
-            >
-              <option value="TODOS">TODOS OS ANALISTAS</option>
-              {reportAnalysts.map(analyst => (
-                <option key={analyst} value={analyst}>{analyst}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 5. Custom Filter/Search Input */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Busca por Palavra-chave</label>
-            <input
-              id="relatorio-filtro-palavrachave"
-              type="text"
-              placeholder="Digite termo para busca livre..."
-              value={repSubMotiveCustom}
-              onChange={(e) => setRepSubMotiveCustom(e.target.value)}
-              className={`w-full px-4 py-2.5 rounded-xl border text-xs font-bold outline-none focus:ring-2 transition-all ${
-                isDarkMode 
-                  ? 'bg-slate-900 border-slate-800 text-white focus:ring-blue-500' 
-                  : 'bg-white border-slate-200 text-slate-700 focus:ring-slate-900'
-              }`}
-            />
-          </div>
-        </div>
-
-        {/* Action Bottom Bar */}
-        <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 ${
-          isDarkMode ? 'bg-slate-950/45' : 'bg-slate-50'
-        }`}>
-          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-            <span>Filtros ativos: Banco: {repBank === 'TODOS' ? 'Todos' : repBank} | Status: {repStatus === 'TODAS' ? 'Padrão Geral' : repStatus} | Analista: {repAnalyst === 'TODOS' ? 'Todos' : repAnalyst}</span>
-          </div>
-
-          <button
-            id="btn-baixar-relatorio-csv"
-            onClick={handleDownloadReportCSV}
-            disabled={reportItems.length === 0}
-            className={`w-full sm:w-auto px-6 py-3 rounded-xl font-extrabold text-[11px] uppercase flex items-center justify-center gap-2 shadow-lg duration-200 transition-all ${
-              reportItems.length > 0 
-                ? 'bg-blue-650 hover:bg-blue-700 bg-blue-600 text-white cursor-pointer hover:shadow-blue-600/10' 
-                : 'bg-slate-100 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-800/60'
-            }`}
+      {cardOrder.map(cardId => {
+        const content = renderCard(cardId);
+        if (!content) return null;
+        return (
+          <div
+            key={cardId}
+            draggable={draggableId === cardId}
+            onDragStart={(e) => handleDragStart(e, cardId)}
+            onDragOver={(e) => handleDragOver(e, cardId)}
+            onDrop={(e) => handleDrop(e, cardId)}
+            onDragEnd={() => setDraggableId(null)}
+            className={`transition-all duration-300 ${draggableId === cardId ? 'opacity-40 scale-[0.99] border-blue-500/50' : ''}`}
           >
-            <Download size={14} />
-            Solicitar & Baixar CSV ({reportItems.length})
-          </button>
-        </div>
-      </div>
-      )}
-
-      {/* 👥 Produtividade Detalhada (Analista e Banco) */}
-      {(currentUser?.permissions?.viewActionsAnalystBank !== false) && (
-      <div className={viewSupervisorResources ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "max-w-3xl mx-auto"}>
-        {/* Tabela por Analista */}
-        {viewSupervisorResources && (
-          <div className={`rounded-3xl border shadow-sm overflow-hidden flex flex-col ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
-              <div className={`p-6 border-b flex flex-col items-center justify-center gap-3 text-center ${isDarkMode ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50'}`}>
-                <h3 className={`text-sm font-black uppercase tracking-tight flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-                  <Users size={18} className="text-blue-600" />
-                  Ações por Analista
-                </h3>
-                <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'}`}>Pivot Table</span>
-              </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className={`text-[10px] font-black text-slate-400 uppercase tracking-widest border-b ${isDarkMode ? 'bg-slate-800/30 border-slate-800' : 'bg-slate-50'}`}>
-                    <th className="px-6 py-4 text-center">Analista</th>
-                    <th className="px-4 py-4 text-center">Aprovar</th>
-                    <th className="px-4 py-4 text-center">Pendenciar</th>
-                    <th className="px-4 py-4 text-center">Reprovar</th>
-                    <th className="px-4 py-4 text-center">Total</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
-                  {Object.entries(metrics.analystTable).length > 0 ? (
-                    Object.entries(metrics.analystTable).map(([name, data]: [string, any]) => (
-                      <tr key={name} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/50'}`}>
-                        <td className="px-6 py-5">
-                          <div className="flex items-center justify-center gap-3">
-                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black ${isDarkMode ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
-                                  {name.charAt(0).toUpperCase()}
-                              </div>
-                              <span className={`font-bold text-xs ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-5 text-center text-xs font-bold text-emerald-600">{data.APROVAR}</td>
-                        <td className="px-4 py-5 text-center text-xs font-bold text-orange-600">{data.PENDENCIAR}</td>
-                        <td className="px-4 py-5 text-center text-xs font-bold text-red-600">{data.RECUSAR}</td>
-                        <td className={`px-4 py-5 text-center font-black text-xs ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{data.TOTAL}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="py-20 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sem registros no período</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {content}
           </div>
-        )}
-
-        {/* Tabela por Banco */}
-        <div className={`rounded-3xl border shadow-sm overflow-hidden flex flex-col ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
-            <div className={`p-6 border-b flex flex-col items-center justify-center gap-3 text-center ${isDarkMode ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50'}`}>
-              <h3 className={`text-sm font-black uppercase tracking-tight flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-                <Landmark size={18} className="text-blue-600" />
-                Ações por Convênio
-              </h3>
-              <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'}`}>Pivot Table</span>
-            </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className={`text-[10px] font-black text-slate-400 uppercase tracking-widest border-b ${isDarkMode ? 'bg-slate-800/30 border-slate-800' : 'bg-slate-50'}`}>
-                  <th className="px-6 py-4 text-center">Instituição</th>
-                  <th className="px-4 py-4 text-center">Aprovar</th>
-                  <th className="px-4 py-4 text-center">Pendenciar</th>
-                  <th className="px-4 py-4 text-center">Reprovar</th>
-                  <th className="px-4 py-4 text-center">Total</th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800' : 'divide-slate-100'}`}>
-                {Object.entries(metrics.bankTable).length > 0 ? (
-                  Object.entries(metrics.bankTable).map(([name, data]: [string, any]) => (
-                    <tr key={name} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/50'}`}>
-                      <td className="px-6 py-5 text-center">
-                        <span className={`font-bold text-xs ${isDarkMode ? 'text-slate-200' : 'text-slate-830'}`}>{name}</span>
-                      </td>
-                      <td className="px-4 py-5 text-center text-xs font-bold text-emerald-600">{data.APROVAR}</td>
-                      <td className="px-4 py-5 text-center text-xs font-bold text-orange-600">{data.PENDENCIAR}</td>
-                      <td className="px-4 py-5 text-center text-xs font-bold text-red-650">{data.RECUSAR}</td>
-                      <td className={`px-4 py-5 text-center font-black text-xs ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{data.TOTAL}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="py-20 text-center text-[10px] font-bold text-slate-404 uppercase tracking-widest">Sem dados bancários detectados</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* Gráfico de Barras Operacional (Distribuição Quantitativa de Ações) */}
-      {viewAdminResources && (currentUser?.permissions?.viewQtyActionsDistChart !== false) && (
-        <div className={`rounded-[2.5rem] p-8 border shadow-sm space-y-6 ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
-           <div className="flex flex-col items-center justify-center gap-3 text-center">
-              <h3 className={`text-lg font-black flex items-center gap-3 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
-                 <BarChart size={22} className="text-blue-600" />
-                 Distribuição Quantitativa de Ações
-              </h3>
-           </div>
-           <div className="flex items-end gap-6 h-48 pt-4">
-              <BarItem label="Aprov" count={metrics.stats.approvals} color="bg-emerald-500" max={metrics.stats.total} />
-              <BarItem label="Pend" count={metrics.stats.pendencies} color="bg-orange-500" max={metrics.stats.total} />
-              <BarItem label="Reprov" count={metrics.stats.refusals} color="bg-red-500" max={metrics.stats.total} />
-              <BarItem label="Outros" count={metrics.stats.total - (metrics.stats.approvals + metrics.stats.pendencies + metrics.stats.refusals)} color={isDarkMode ? 'bg-slate-700' : 'bg-slate-200'} max={metrics.stats.total} />
-           </div>
-        </div>
-      )}
+        );
+      })}
 
       {/* 🛡️ Portal de Auditoria & Logs de Decisões */}
       {viewSupervisorResources && (
@@ -2140,7 +2421,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }`}>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-xl">🛡️</span>
+              <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-indigo-950/40 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}><ShieldCheck size={18} /></div>
               <div>
                 <h3 className={`text-sm font-black uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
                   Portal de Auditoria & Logs de Decisões

@@ -80,7 +80,7 @@ interface ProposalQueueProps {
   rules?: AppRules;
   onTakeOver: (id: string) => void;
   onRelease: (id: string) => void;
-  onFinalize: (id: string, status: RiskStatus, parecer: string, aiAnalysisResult?: any, contactAttachment?: any) => void;
+  onFinalize: (id: string, status: RiskStatus, parecer: string, aiAnalysisResult?: any, contactAttachment?: any, fraudCategory?: string, fraudSubMotive?: string) => void;
   onQuickSchedule: (proposal: Proposal) => void;
   onDelete?: (id: string) => void;
   permissions: UserPermissions;
@@ -518,7 +518,7 @@ interface ItemProps {
   onToggle: () => void;
   onTakeOver: (id: string) => void;
   onRelease: (id: string) => void;
-  onFinalize: (id: string, status: RiskStatus, parecer: string, aiAnalysisResult?: any, contactAttachment?: any) => void;
+  onFinalize: (id: string, status: RiskStatus, parecer: string, aiAnalysisResult?: any, contactAttachment?: any, fraudCategory?: string, fraudSubMotive?: string) => void;
   onQuickSchedule: (proposal: Proposal) => void;
   onDelete?: (id: string) => void;
   permissions: UserPermissions;
@@ -538,6 +538,22 @@ interface ItemProps {
   isDragging?: boolean;
   isDragOver?: boolean;
 }
+
+const FRAUD_MAP: Record<string, string[]> = {
+  "Contato Insatisfatório": [
+    "Terceiro se Passando",
+    "Cliente não Reconhece a Operação"
+  ],
+  "Documento Irregular / Adulterações": [
+    "Campo Foto",
+    "Fonte",
+    "Formatação",
+    "Sobreposição de Foto"
+  ],
+  "Dados Divergentes": [
+    "Informações diferentes da Receita Federal"
+  ]
+};
 
 const ProposalQueueItem: React.FC<ItemProps> = ({ 
   proposal, 
@@ -601,6 +617,9 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
   const [selectedReason, setSelectedReason] = useState('');
   const [deAcordo, setDeAcordo] = useState(false);
   const [quemAutorizou, setQuemAutorizou] = useState('');
+  const [isFraud, setIsFraud] = useState(false);
+  const [fraudCategory, setFraudCategory] = useState('');
+  const [fraudSubMotive, setFraudSubMotive] = useState('');
 
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<{
@@ -858,8 +877,46 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
       doc.text(`• Analista: ${latestRejectionLog.analista}`, 105, yInicialCard1 + 33);
     }
 
+    const activeFraudCategory = isFraud ? fraudCategory : (proposal.fraudCategory || latestRejectionLog?.fraudCategory);
+    const activeFraudSubMotive = isFraud ? fraudSubMotive : (proposal.fraudSubMotive || latestRejectionLog?.fraudSubMotive);
+    const hasFraudInfo = !!(activeFraudCategory && activeFraudSubMotive);
+
+    if (hasFraudInfo) {
+      const ySectionFraud = yInicialCard1 + cardHeight + 6;
+      const fraudBoxHeight = 22;
+
+      // Draw red warning background box
+      doc.setFillColor(254, 242, 242); // soft red background #fef2f2
+      doc.setDrawColor(248, 113, 113); // light red border #f87171
+      doc.setLineWidth(0.5);
+      doc.rect(10, ySectionFraud, 190, fraudBoxHeight, 'FD');
+
+      // Left warning stripe
+      doc.setFillColor(220, 38, 38); // red stripe #dc2626
+      doc.rect(10, ySectionFraud, 2, fraudBoxHeight, 'F');
+
+      // Alert Title
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(220, 38, 38); // Red text
+      doc.text("ALERTA DE SEGURANÇA: SUSPEITA DE FRAUDE / IRREGULARIDADE DETECTADA", 15, ySectionFraud + 6);
+
+      // Category and Submotive
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42); // dark text
+      doc.text(`• Grupo de irregularidade:`, 15, ySectionFraud + 13);
+      doc.setFont("Helvetica", "normal");
+      doc.text(activeFraudCategory || '', 56, ySectionFraud + 13);
+
+      doc.setFont("Helvetica", "bold");
+      doc.text(`• Sub-motivo específico:`, 15, ySectionFraud + 18);
+      doc.setFont("Helvetica", "normal");
+      doc.text(activeFraudSubMotive || '', 54, ySectionFraud + 18);
+    }
+
     // --- BLOCO 2: PARECER TÉCNICO E APONTAMENTOS DA ANÁLISE ---
-    const ySection2 = yInicialCard1 + cardHeight + 8;
+    const ySection2 = yInicialCard1 + cardHeight + (hasFraudInfo ? 22 + 12 : 8);
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
@@ -1785,6 +1842,13 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                           <div style={{ fontSize: '14px', fontWeight: 900, color: corAcao, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                             {log.acao || 'DECISÃO'}
                           </div>
+
+                          {log.fraudCategory && log.fraudSubMotive && (
+                            <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 animate-in fade-in duration-200">
+                              <span>🛡️ FRAUDE EVITADA:</span>
+                              <span>{log.fraudCategory} • {log.fraudSubMotive}</span>
+                            </div>
+                          )}
                           
                           {log.motivo && (
                             <div style={{
@@ -1930,7 +1994,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                       const currentRule = REGRAS_PERICIA[selectedReason] || { status: 'ANALISE', mensagem: '', cor: 'normal' };
                       const isApproveDisabled = deAcordo && !quemAutorizou.trim();
                       const isPendênciaDisabled = false;
-                      const isReprovarDisabled = false;
+                      const isReprovarDisabled = isFraud && (!fraudCategory || !fraudSubMotive);
 
                       const contactData = (audioFile || relatoContato) ? {
                         audioName: audioFile?.name,
@@ -2009,6 +2073,67 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                             </div>
                           </div>
 
+                          {/* Suspeita de Fraude / Irregularidade */}
+                          <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-slate-800/30 border-slate-700' : 'bg-slate-50 border-slate-200'} space-y-3`}>
+                            <h5 className={`text-xs font-black uppercase tracking-widest flex items-center gap-1.5 ${isDarkMode ? 'text-red-400' : 'text-red-650'}`}>
+                              🛡️ Prevenção de Fraudes
+                            </h5>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isFraud}
+                                onChange={(e) => {
+                                  setIsFraud(e.target.checked);
+                                  if (!e.target.checked) {
+                                    setFraudCategory('');
+                                    setFraudSubMotive('');
+                                  }
+                                }}
+                                className="rounded border-slate-300 text-red-600 focus:ring-red-500 w-4 h-4"
+                              />
+                              <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                                Registrar Suspeita de Fraude / Irregularidade
+                              </span>
+                            </label>
+                            
+                            {isFraud && (
+                              <div className="space-y-3 animate-in fade-in duration-200">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Grupo de Fraude / Irregularidade</label>
+                                  <select
+                                    value={fraudCategory}
+                                    onChange={(e) => {
+                                      setFraudCategory(e.target.value);
+                                      setFraudSubMotive('');
+                                    }}
+                                    className={`w-full p-2.5 border rounded-lg text-xs font-bold outline-none transition-all ${isDarkMode ? 'bg-slate-900/50 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-700'}`}
+                                  >
+                                    <option value="">-- Selecione o grupo --</option>
+                                    {Object.keys(FRAUD_MAP).map(cat => (
+                                      <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {fraudCategory && (
+                                  <div className="space-y-1 animate-in slide-in-from-top-1 duration-150">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sub-motivo específico</label>
+                                    <select
+                                      value={fraudSubMotive}
+                                      onChange={(e) => setFraudSubMotive(e.target.value)}
+                                      className={`w-full p-2.5 border rounded-lg text-xs font-bold outline-none transition-all ${isDarkMode ? 'bg-slate-900/50 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-700'}`}
+                                    >
+                                      <option value="">-- Selecione o sub-motivo --</option>
+                                      {FRAUD_MAP[fraudCategory].map(sub => (
+                                        <option key={sub} value={sub}>{sub}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
                           <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Parecer Técnico / Notas</label>
                             <textarea 
@@ -2039,7 +2164,15 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                                 const mot = selectedReason && parecer.trim() && selectedReason !== parecer.trim()
                                   ? `${selectedReason} - ${parecer.trim()}`
                                   : (selectedReason || parecer.trim() || 'REPROVADO');
-                                onFinalize(proposal.id, 'REJECTED', mot, aiAnalysisResult, contactData);
+                                onFinalize(
+                                  proposal.id,
+                                  'REJECTED',
+                                  isFraud ? `[REPROVADO POR FRAUDE | ${fraudCategory} | ${fraudSubMotive}] ${mot}` : mot,
+                                  aiAnalysisResult,
+                                  contactData,
+                                  isFraud ? fraudCategory : undefined,
+                                  isFraud ? fraudSubMotive : undefined
+                                );
                               }}
                               disabled={isReprovarDisabled}
                               className="flex items-center justify-center gap-2 py-4 bg-red-650 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 shadow-lg shadow-red-500/20"

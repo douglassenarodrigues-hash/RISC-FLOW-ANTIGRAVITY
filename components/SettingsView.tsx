@@ -161,6 +161,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     editRules: false,
     deleteProposals: false,
     fullAnalyticalControl: false,
+    viewFraudPreventionChart: true,
   });
 
   // Partner Manual Feed Form
@@ -874,6 +875,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       editPartnerSla: user.permissions.editPartnerSla ?? true,
       editPartnerBehaviorRegua: user.permissions.editPartnerBehaviorRegua ?? true,
       editPartnerSecurityVerify: user.permissions.editPartnerSecurityVerify ?? true,
+      viewFraudPreventionChart: user.permissions.viewFraudPreventionChart ?? true,
     });
     setIsPermissionsModalOpen(true);
   };
@@ -1086,7 +1088,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 {/* Lista de Parceiros Cadastrados */}
                 <div
-                  className={`border rounded-2xl overflow-hidden shadow-sm ${isDarkMode ? "border-slate-800" : "border-slate-200"}`}
+                  className={`border rounded-2xl overflow-x-auto shadow-sm ${isDarkMode ? "border-slate-800" : "border-slate-200"}`}
                 >
                   <div
                     className={`p-4 border-b flex items-center justify-between ${isDarkMode ? "bg-slate-800/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}
@@ -1119,19 +1121,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </button>
                     </div>
                   </div>
-                  <table className="w-full text-center text-xs">
+                  <table className="w-full text-center text-xs min-w-[700px]">
                     <thead>
                       <tr
                         className={`font-black text-slate-500 uppercase tracking-tight border-b ${isDarkMode ? "bg-slate-800/30 border-slate-800" : "bg-slate-50 border-slate-200"}`}
                       >
-                        <th className="px-6 py-3 text-center">CÓDIGO</th>
-                        <th className="px-6 py-3 text-center">
+                        <th className="px-6 py-3 text-center min-w-[90px]">CÓDIGO</th>
+                        <th className="px-6 py-3 text-center min-w-[200px]">
                           NOME DO PARCEIRO
                         </th>
-                        <th className="px-6 py-3 text-center">SAÚDE</th>
-                        <th className="px-6 py-3 text-center">RÉGUA</th>
-                        <th className="px-6 py-3 text-center">STATUS</th>
-                        <th className="px-6 py-3 text-center">
+                        <th className="px-6 py-3 text-center min-w-[90px]">SAÚDE</th>
+                        <th className="px-6 py-3 text-center min-w-[90px]">RÉGUA</th>
+                        <th className="px-6 py-3 text-center min-w-[100px]">STATUS</th>
+                        <th className="px-6 py-3 text-center min-w-[130px]">
                           AÇÕES DE GESTÃO
                         </th>
                       </tr>
@@ -1737,10 +1739,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
 
           {activeTab === "access" && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* CARD DE PROVISIONAMENTO AMPLIADO */}
               <div
-                className={`lg:col-span-5 p-12 rounded-[3rem] border space-y-10 shadow-inner ${isDarkMode ? "bg-slate-800/30 border-slate-800" : "bg-slate-50 border-slate-200"}`}
+                className={`lg:col-span-4 p-8 rounded-[3rem] border space-y-8 shadow-inner ${isDarkMode ? "bg-slate-800/30 border-slate-800" : "bg-slate-50 border-slate-200"}`}
               >
                 <div className="flex items-center gap-4">
                   <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-2xl shadow-blue-500/30">
@@ -1830,7 +1832,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {/* TABELA DE GESTÃO DE ACESSOS */}
               <div
-                className={`lg:col-span-7 rounded-[2.5rem] border shadow-sm overflow-hidden flex flex-col ${isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-200"}`}
+                className={`lg:col-span-8 rounded-[2.5rem] border shadow-sm overflow-hidden flex flex-col ${isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-200"}`}
               >
                 <div
                   className={`p-8 border-b flex items-center justify-between ${isDarkMode ? "bg-slate-800/50 border-slate-800" : "bg-slate-50/50"}`}
@@ -1855,16 +1857,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <CheckCircle2 size={16} /> Salvar Alterações
                   </button>
                 </div>
-                <div className="flex-1 overflow-y-auto">
-                  <table className="w-full text-left">
+                <div className="flex-1 overflow-x-auto overflow-y-auto">
+                  <table className="w-full text-left min-w-[850px]">
                     <thead
                       className={`text-[10px] font-black text-slate-400 uppercase tracking-widest border-b ${isDarkMode ? "bg-slate-800/30 border-slate-800" : "bg-slate-50"}`}
                     >
                       <tr>
-                        <th className="px-8 py-4">Usuário</th>
-                        <th className="px-6 py-4">Perfil (Cargo)</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-8 py-4 text-right">Ações</th>
+                        <th className="px-5 py-4 w-[35%] min-w-[260px]">Usuário</th>
+                        <th className="px-4 py-4 w-[30%] min-w-[220px]">Perfil (Cargo)</th>
+                        <th className="px-4 py-4 w-[15%] min-w-[110px]">Status</th>
+                        <th className="px-5 py-4 w-[20%] min-w-[160px] text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody
@@ -1875,10 +1877,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           key={u.id}
                           className={`${u.active ? "transition-all" : "opacity-40 grayscale"} ${isDarkMode ? "hover:bg-slate-800/50" : "hover:bg-slate-50/50"}`}
                         >
-                          <td className="px-8 py-4">
+                          <td className="px-5 py-4 min-w-[260px]">
                             <input
                               type="text"
-                              className={`bg-transparent border-none outline-none font-bold text-sm tracking-tight w-full ${isDarkMode ? "text-slate-200" : "text-slate-800"}`}
+                              className={`bg-transparent border-none outline-none font-bold text-sm tracking-tight w-full text-left ${isDarkMode ? "text-slate-200" : "text-slate-800"}`}
                               value={u.username}
                               onChange={(e) =>
                                 handleUpdateLocalUser(
@@ -1889,7 +1891,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               }
                             />
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-4 min-w-[220px]">
                             <select
                               className={`bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-tighter cursor-pointer ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
                               value={u.role}
@@ -1908,7 +1910,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               <option value="Master">Master (Auditoria)</option>
                             </select>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-4 min-w-[110px]">
                             <select
                               className={`bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-tighter cursor-pointer ${u.status === "Online" ? "text-emerald-500" : u.status === "Offline" ? "text-slate-400" : "text-red-500"}`}
                               value={u.status || "Offline"}
@@ -1925,7 +1927,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               <option value="Suspenso">Suspenso</option>
                             </select>
                           </td>
-                          <td className="px-8 py-4 text-right">
+                          <td className="px-5 py-4 min-w-[160px] text-right">
                             <div className="flex items-center justify-end gap-3">
                               <button
                                 onClick={() => handleEditUser(u)}
@@ -2630,7 +2632,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     })
                   }
                   className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-45 ${
-                    tempPerms.editPartnerLimit ? "bg-indigo-650" : "bg-slate-400 dark:bg-slate-700"
+                    tempPerms.editPartnerLimit ? "bg-emerald-600" : "bg-slate-400 dark:bg-slate-700"
                   }`}
                 >
                   <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${
@@ -2658,7 +2660,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     })
                   }
                   className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-45 ${
-                    tempPerms.editPartnerSla ? "bg-indigo-650" : "bg-slate-400 dark:bg-slate-700"
+                    tempPerms.editPartnerSla ? "bg-emerald-600" : "bg-slate-400 dark:bg-slate-700"
                   }`}
                 >
                   <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${
@@ -2686,7 +2688,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     })
                   }
                   className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-45 ${
-                    tempPerms.editPartnerBehaviorRegua ? "bg-indigo-650" : "bg-slate-400 dark:bg-slate-700"
+                    tempPerms.editPartnerBehaviorRegua ? "bg-emerald-600" : "bg-slate-400 dark:bg-slate-700"
                   }`}
                 >
                   <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${
@@ -2714,11 +2716,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     })
                   }
                   className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-45 ${
-                    tempPerms.editPartnerSecurityVerify ? "bg-indigo-650" : "bg-slate-400 dark:bg-slate-700"
+                    tempPerms.editPartnerSecurityVerify ? "bg-emerald-600" : "bg-slate-400 dark:bg-slate-700"
                   }`}
                 >
                   <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${
                     tempPerms.editPartnerSecurityVerify ? "left-6.5" : "left-0.5"
+                  }`} />
+                </button>
+              </div>
+
+              {/* Gráfico de Prevenção de Fraudes */}
+              <div className={`flex items-center justify-between p-4 rounded-xl border ${isDarkMode ? "bg-slate-850/20 border-slate-800" : "bg-slate-50/40 border-slate-150"}`}>
+                <div className="max-w-[80%] pr-2">
+                  <span className={`text-[11px] font-bold uppercase block ${isDarkMode ? "text-slate-200" : "text-slate-750"}`}>
+                    Gráfico Prevenção de Fraudes
+                  </span>
+                  <p className="text-[9px] text-slate-400 font-medium leading-tight">
+                    Liberar a visibilidade do gráfico de fraudes evitadas no dashboard.
+                  </p>
+                </div>
+                <button
+                  disabled={currentUser.role !== "Master"}
+                  onClick={() =>
+                    setTempPerms({
+                      ...tempPerms,
+                      viewFraudPreventionChart: !tempPerms.viewFraudPreventionChart,
+                    })
+                  }
+                  className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-45 ${
+                    tempPerms.viewFraudPreventionChart ? "bg-emerald-600" : "bg-slate-400 dark:bg-slate-700"
+                  }`}
+                >
+                  <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${
+                    tempPerms.viewFraudPreventionChart ? "left-6.5" : "left-0.5"
                   }`} />
                 </button>
               </div>
@@ -2731,11 +2761,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 {/* View Full CPF */}
                 <div className={`flex items-center justify-between p-4 rounded-xl border ${isDarkMode ? "bg-slate-850/20 border-slate-800" : "bg-slate-50/40 border-slate-150"}`}>
-                  <div>
-                    <span className={`text-[11px] font-bold uppercase ${isDarkMode ? "text-slate-200" : "text-slate-750"}`}>
+                  <div className="max-w-[80%] pr-2">
+                    <span className={`text-[11px] font-bold uppercase block ${isDarkMode ? "text-slate-200" : "text-slate-750"}`}>
                       Visualizar CPF Integral
                     </span>
-                    <p className="text-[9px] text-slate-400 font-medium">
+                    <p className="text-[9px] text-slate-400 font-medium leading-tight">
                       Descobre o mascaramento do CPF nas grades de dados.
                     </p>
                   </div>
@@ -2748,7 +2778,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       })
                     }
                     className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-45 ${
-                      tempPerms.viewFullCpf ? "bg-blue-600" : "bg-slate-400 dark:bg-slate-700"
+                      tempPerms.viewFullCpf ? "bg-emerald-600" : "bg-slate-400 dark:bg-slate-700"
                     }`}
                   >
                     <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${
@@ -2759,11 +2789,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 {/* View Values */}
                 <div className={`flex items-center justify-between p-4 rounded-xl border ${isDarkMode ? "bg-slate-850/20 border-slate-800" : "bg-slate-50/40 border-slate-150"}`}>
-                  <div>
-                    <span className={`text-[11px] font-bold uppercase ${isDarkMode ? "text-slate-200" : "text-slate-750"}`}>
+                  <div className="max-w-[80%] pr-2">
+                    <span className={`text-[11px] font-bold uppercase block ${isDarkMode ? "text-slate-200" : "text-slate-750"}`}>
                       Visualizar Valores Financeiros
                     </span>
-                    <p className="text-[9px] text-slate-400 font-medium">
+                    <p className="text-[9px] text-slate-400 font-medium leading-tight">
                       Exibe valores de propostas e do relatório financeiro.
                     </p>
                   </div>
@@ -2776,7 +2806,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       })
                     }
                     className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-45 ${
-                      tempPerms.viewValues ? "bg-blue-600" : "bg-slate-400 dark:bg-slate-700"
+                      tempPerms.viewValues ? "bg-emerald-600" : "bg-slate-400 dark:bg-slate-700"
                     }`}
                   >
                     <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${
