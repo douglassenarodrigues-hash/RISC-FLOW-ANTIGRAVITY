@@ -23,7 +23,11 @@ const STORAGE_KEY_USERS = 'riskflow_users_v4';
 const STORAGE_KEY_AGENDA = 'riskflow_agenda_v4';
 const SESSION_KEY_AUTH = 'riskflow_current_session';
 
-export type TimeFilter = 'all' | 'today' | 'month' | string;
+export interface TimeFilter {
+  type: 'all' | 'today' | 'month' | 'custom';
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+}
 
 interface Toast {
   id: number;
@@ -247,7 +251,11 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [settingsTab, setSettingsTab] = useState<'partner' | 'covenant' | 'access' | 'governance' | ''>('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>({
+    type: 'all',
+    startDate: '',
+    endDate: ''
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
@@ -922,13 +930,20 @@ const App: React.FC = () => {
   }, [proposals, currentUser]);
 
   const timeFilteredProposals = useMemo(() => {
-    if (timeFilter === 'all') return userScopedProposals;
+    if (timeFilter.type === 'all') return userScopedProposals;
     const today = new Date().toISOString().split('T')[0];
     const thisMonth = today.substring(0, 7);
     return userScopedProposals.filter(p => {
-      if (timeFilter === 'today') return p.dataSistema === today;
-      if (timeFilter === 'month') return p.dataSistema?.startsWith(thisMonth);
-      return p.dataSistema === timeFilter;
+      if (timeFilter.type === 'today') return p.dataSistema === today;
+      if (timeFilter.type === 'month') return p.dataSistema?.startsWith(thisMonth);
+      if (timeFilter.type === 'custom') {
+        const date = p.dataSistema;
+        if (!date) return false;
+        if (timeFilter.startDate && date < timeFilter.startDate) return false;
+        if (timeFilter.endDate && date > timeFilter.endDate) return false;
+        return true;
+      }
+      return true;
     });
   }, [userScopedProposals, timeFilter]);
 
@@ -1087,7 +1102,7 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'dashboard' ? (
             <DashboardErrorBoundary isDarkMode={isDarkMode}>
-              <DashboardView proposals={timeFilteredProposals} onNavigate={setCurrentView} history={history} isDarkMode={isDarkMode} currentUser={currentUser || undefined} users={users} importedBases={importedBases} />
+              <DashboardView proposals={timeFilteredProposals} onNavigate={setCurrentView} history={history} isDarkMode={isDarkMode} currentUser={currentUser || undefined} users={users} importedBases={importedBases} timeFilter={timeFilter} />
             </DashboardErrorBoundary>
           ) : currentView === 'history' ? (
             <HistoryView history={history} isDarkMode={isDarkMode} />

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Proposal, RiskStatus, DecisionEntry, UserAccount, BaseImport, UserPermissions } from '../types';
 import { ViewType } from './Sidebar';
+import { TimeFilter } from '../App';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
@@ -125,6 +126,33 @@ const isLogThisMonth = (timestampStr: string): boolean => {
   }
 };
 
+const isLogInFilter = (timestampStr: string, filter: TimeFilter): boolean => {
+  try {
+    const logDateObj = parsePtBrDate(timestampStr);
+    const logDateStr = logDateObj.getFullYear() + '-' + 
+      String(logDateObj.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(logDateObj.getDate()).padStart(2, '0'); // format: YYYY-MM-DD
+    
+    if (filter.type === 'all') return true;
+    if (filter.type === 'today') {
+      const today = new Date().toISOString().split('T')[0];
+      return logDateStr === today;
+    }
+    if (filter.type === 'month') {
+      const thisMonth = new Date().toISOString().substring(0, 7);
+      return logDateStr.startsWith(thisMonth);
+    }
+    if (filter.type === 'custom') {
+      if (filter.startDate && logDateStr < filter.startDate) return false;
+      if (filter.endDate && logDateStr > filter.endDate) return false;
+      return true;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
 const formatMsToTime = (ms: number): string => {
   if (ms <= 0 || isNaN(ms)) return "00:00";
   const totalSeconds = Math.floor(ms / 1000);
@@ -172,6 +200,7 @@ interface DashboardViewProps {
   currentUser?: UserAccount;
   users?: UserAccount[];
   importedBases?: BaseImport[];
+  timeFilter: TimeFilter;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ 
@@ -181,7 +210,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   isDarkMode, 
   currentUser, 
   users = [],
-  importedBases = []
+  importedBases = [],
+  timeFilter
 }) => {
   const [selectedBancos, setSelectedBancos] = useState<string[]>([]);
   
@@ -312,9 +342,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return new Date().toISOString().split('T')[0];
   });
 
+  useEffect(() => {
+    if (timeFilter.type === 'today') {
+      const today = new Date().toISOString().split('T')[0];
+      setProdStartDate(today);
+      setProdEndDate(today);
+    } else if (timeFilter.type === 'month') {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+      const lastDay = today.toISOString().split('T')[0];
+      setProdStartDate(firstDay);
+      setProdEndDate(lastDay);
+    } else if (timeFilter.type === 'all') {
+      let earliestDate = '';
+      if (history && history.length > 0) {
+        try {
+          const dates = history.map(h => parsePtBrDate(h.timestamp).getTime());
+          const minTime = Math.min(...dates);
+          earliestDate = new Date(minTime).toISOString().split('T')[0];
+        } catch (e) {}
+      }
+      if (!earliestDate) {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        earliestDate = d.toISOString().split('T')[0];
+      }
+      setProdStartDate(earliestDate);
+      setProdEndDate(new Date().toISOString().split('T')[0]);
+    } else if (timeFilter.type === 'custom') {
+      if (timeFilter.startDate) setProdStartDate(timeFilter.startDate);
+      if (timeFilter.endDate) setProdEndDate(timeFilter.endDate);
+    }
+  }, [timeFilter, history]);
+
   const performanceMetrics = useMemo(() => {
-    // 1. Get all logs today
-    const generalLogsToday = history.filter(h => isLogToday(h.timestamp));
+    // 1. Get all logs today/period
+    const generalLogsToday = history.filter(h => isLogInFilter(h.timestamp, timeFilter));
     
     // Processed today (General)
     const generalProcessedToday = generalLogsToday.filter(h => 
@@ -410,7 +473,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         pending: individualMonthPending
       }
     };
-  }, [history, currentUser]);
+  }, [history, currentUser, timeFilter]);
 
   const productionReportData = useMemo(() => {
     const startDayTime = new Date(prodStartDate + 'T00:00:00').getTime();
@@ -637,7 +700,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [history, prodStartDate, prodEndDate]);
 
   const topAnalystsToday = useMemo(() => {
-    const generalLogsToday = history.filter(h => isLogToday(h.timestamp));
+    const generalLogsToday = history.filter(h => isLogInFilter(h.timestamp, timeFilter));
     
     // Processed today (General/Valid finalizations)
     const finalizedToday = generalLogsToday.filter(h => 
@@ -672,7 +735,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 3);
-  }, [history]);
+  }, [history, timeFilter]);
 
   const demandDistributions = useMemo(() => {
     // Filter proposals based on selected bank
@@ -776,6 +839,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const reportItems = useMemo(() => {
     return history.filter(log => {
+      // 0. Filtrar por Período Geral
+      if (!isLogInFilter(log.timestamp, timeFilter)) {
+        return false;
+      }
+
       // 1. Filtrar por Banco
       if (repBank !== 'TODOS' && log.banco.toUpperCase() !== repBank.toUpperCase()) {
         return false;
@@ -820,7 +888,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       return true;
     });
-  }, [history, repBank, repStatus, repSubMotiveDropdown, repSubMotiveCustom, repAnalyst]);
+  }, [history, repBank, repStatus, repSubMotiveDropdown, repSubMotiveCustom, repAnalyst, timeFilter]);
 
   const handleStatusChange = (statusVal: string) => {
     setRepStatus(statusVal);
@@ -987,10 +1055,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     document.body.removeChild(link);
   };
 
+  const timeFilteredHistory = useMemo(() => {
+    return history.filter(h => isLogInFilter(h.timestamp, timeFilter));
+  }, [history, timeFilter]);
+
   const filteredHistory = useMemo(() => {
-    if (selectedBancos.length === 0) return history;
-    return history.filter(h => selectedBancos.includes(h.banco));
-  }, [history, selectedBancos]);
+    if (selectedBancos.length === 0) return timeFilteredHistory;
+    return timeFilteredHistory.filter(h => selectedBancos.includes(h.banco));
+  }, [timeFilteredHistory, selectedBancos]);
 
   const metrics = useMemo(() => {
     const stats = {
@@ -1076,7 +1148,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-950/40 border-slate-850' : 'bg-slate-50/50 border-slate-200/50'}`}>
                 <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <span>📅</span> Produção Diária (Hoje)
+                  <span>📅</span> Produção no Período ({
+                    timeFilter.type === 'today' ? 'Hoje' :
+                    timeFilter.type === 'month' ? 'Mês Corrente' :
+                    timeFilter.type === 'all' ? 'Tudo' :
+                    `Personalizado: ${timeFilter.startDate ? timeFilter.startDate.split('-').reverse().join('/') : ''} a ${timeFilter.endDate ? timeFilter.endDate.split('-').reverse().join('/') : ''}`
+                  })
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 text-center">
@@ -1097,7 +1174,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-dashed border-slate-150 dark:border-slate-800 flex justify-between items-center text-[10px]">
-                  <span className="text-slate-450 font-bold uppercase text-[9px]">Taxa de Aprovação (Hoje):</span>
+                  <span className="text-slate-450 font-bold uppercase text-[9px]">Taxa de Aprovação:</span>
                   <span className="font-mono font-black text-emerald-500">{performanceMetrics.individual.approvalRate}%</span>
                 </div>
                 <div className="mt-1 flex justify-between items-center text-[10px]">
@@ -1160,7 +1237,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     Resumo de Performance do Dia
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium">
-                    Métricas de propostas processadas pelos analistas hoje.
+                    Métricas de propostas processadas pelos analistas no período.
                   </p>
                 </div>
               </div>
@@ -1183,7 +1260,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-905'}`}>
                     {performanceMetrics.individual.total}
                   </span>
-                  <span className="text-xs text-slate-400 font-semibold">{performanceMetrics.individual.total === 1 ? 'proposta' : 'propostas'} hoje</span>
+                  <span className="text-xs text-slate-400 font-semibold">{performanceMetrics.individual.total === 1 ? 'proposta' : 'propostas'} {timeFilter.type === 'today' ? 'hoje' : 'no período'}</span>
                 </div>
                 
                 <div className="mt-3 pt-3 border-t border-dashed dark:border-slate-800/80 border-slate-200/60 flex items-center justify-between text-[11px]">
@@ -1236,7 +1313,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 isDarkMode ? 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-900/20' : 'bg-slate-50/50 border-slate-150 hover:bg-slate-50'
               }`}>
                 <div className="flex items-center justify-between mb-2 pb-1 border-b dark:border-slate-800/80 border-slate-150">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🏆 Top 3 Analistas (Hoje)</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🏆 Top 3 Analistas ({
+                    timeFilter.type === 'today' ? 'Hoje' :
+                    timeFilter.type === 'month' ? 'Mês Corrente' :
+                    timeFilter.type === 'all' ? 'Tudo' :
+                    'Período'
+                  })</p>
                   <span className={`text-[9.5px] font-black font-mono px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
                     Ranking
                   </span>
@@ -1244,7 +1326,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 
                 {topAnalystsToday.length === 0 ? (
                   <div className="h-[76px] flex items-center justify-center text-[10px] font-semibold text-slate-400 text-center uppercase tracking-wide">
-                    Nenhuma proposta finalizada<br />hoje
+                    Nenhuma proposta finalizada<br />{timeFilter.type === 'today' ? 'hoje' : 'no período'}
                   </div>
                 ) : (
                   <div className="space-y-2">

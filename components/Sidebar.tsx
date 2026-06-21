@@ -93,10 +93,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return proposals.filter((p) => {
       const matchStatus = p.status === status;
       if (!matchStatus) return false;
-      if (timeFilter === "all") return true;
-      if (timeFilter === "today") return p.dataSistema === today;
-      if (timeFilter === "month") return p.dataSistema?.startsWith(thisMonth);
-      return p.dataSistema === timeFilter;
+      if (timeFilter.type === "all") return true;
+      if (timeFilter.type === "today") return p.dataSistema === today;
+      if (timeFilter.type === "month") return p.dataSistema?.startsWith(thisMonth);
+      if (timeFilter.type === "custom") {
+        const date = p.dataSistema;
+        if (!date) return false;
+        if (timeFilter.startDate && date < timeFilter.startDate) return false;
+        if (timeFilter.endDate && date > timeFilter.endDate) return false;
+        return true;
+      }
+      return true;
     }).length;
   };
 
@@ -264,51 +271,75 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Filtro Temporal com Calendário (Posicionado abaixo de Reprovados) - Habilita apenas quando expandido */}
         {!isCollapsed && (
           <div className="mb-6 px-4 py-4 bg-slate-850/40 dark:bg-slate-800/40 rounded-2xl border border-slate-800 dark:border-slate-700/50 mt-4">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Calendar size={12} /> Filtrar por Data
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2" title="Esse filtro altera as filas de trabalho e os cards do dashboard">
+              <Calendar size={12} /> Período (Dashboard & Filas)
             </p>
             <div className="flex flex-col gap-1.5">
               <FilterButton
-                active={timeFilter === "all"}
+                active={timeFilter.type === "all"}
                 label="Tudo"
-                onClick={() => onTimeFilterChange("all")}
+                onClick={() => onTimeFilterChange({ type: "all", startDate: "", endDate: "" })}
               />
               <FilterButton
-                active={timeFilter === "today"}
-                label="D0 (Hoje)"
-                onClick={() => onTimeFilterChange("today")}
+                active={timeFilter.type === "today"}
+                label="Hoje"
+                onClick={() => onTimeFilterChange({ type: "today", startDate: "", endDate: "" })}
               />
               <FilterButton
-                active={timeFilter === "month"}
+                active={timeFilter.type === "month"}
                 label="Mês Corrente"
-                onClick={() => onTimeFilterChange("month")}
+                onClick={() => onTimeFilterChange({ type: "month", startDate: "", endDate: "" })}
               />
 
-              <div className="mt-2 pt-2 border-t border-slate-700/30">
-                <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-1">
-                  Data Específica
+              <div className="mt-2 pt-2 border-t border-slate-700/30 space-y-2">
+                <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">
+                  Período Personalizado
                 </label>
-                <input
-                  type="date"
-                  value={
-                    !["all", "today", "month"].includes(timeFilter)
-                      ? timeFilter
-                      : ""
-                  }
-                  onChange={(e) => {
-                    const selected = e.target.value;
-                    if (selected) {
-                      onTimeFilterChange(selected);
-                    } else {
-                      onTimeFilterChange("all");
-                    }
-                  }}
-                  className={`w-full px-3 py-1.5 rounded-lg text-xs font-bold transition-all focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                    !["all", "today", "month"].includes(timeFilter)
-                      ? "bg-blue-600 text-white border border-blue-500"
-                      : "bg-slate-850 text-slate-300 border border-slate-700/70 hover:border-slate-600"
-                  }`}
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[8px] font-bold text-slate-400 block mb-0.5">Início</span>
+                    <input
+                      type="date"
+                      value={timeFilter.type === "custom" ? timeFilter.startDate : ""}
+                      onChange={(e) => {
+                        const start = e.target.value;
+                        onTimeFilterChange({
+                          type: "custom",
+                          startDate: start,
+                          endDate: timeFilter.type === "custom" ? timeFilter.endDate : ""
+                        });
+                      }}
+                      className={`w-full px-2 py-1 rounded-lg text-[10px] font-bold transition-all focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                        timeFilter.type === "custom" && timeFilter.startDate
+                          ? "bg-blue-600 text-white border border-blue-500"
+                          : "bg-slate-850 text-slate-350 border border-slate-700/70 hover:border-slate-600"
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-bold text-slate-400 block mb-0.5">Fim</span>
+                    <input
+                      type="date"
+                      value={timeFilter.type === "custom" ? timeFilter.endDate : ""}
+                      onChange={(e) => {
+                        const end = e.target.value;
+                        onTimeFilterChange({
+                          type: "custom",
+                          startDate: timeFilter.type === "custom" ? timeFilter.startDate : "",
+                          endDate: end
+                        });
+                      }}
+                      className={`w-full px-2 py-1 rounded-lg text-[10px] font-bold transition-all focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                        timeFilter.type === "custom" && timeFilter.endDate
+                          ? "bg-blue-600 text-white border border-blue-500"
+                          : "bg-slate-850 text-slate-350 border border-slate-700/70 hover:border-slate-600"
+                      }`}
+                    />
+                  </div>
+                </div>
+                <p className="text-[8px] text-slate-500 font-semibold italic mt-1 leading-normal">
+                  * Este filtro altera os dados de todos os cards do dashboard e das filas.
+                </p>
               </div>
             </div>
           </div>

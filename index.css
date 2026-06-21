@@ -77,3 +77,29 @@
     @apply text-[#38bdf8] font-sans text-[10px] font-bold uppercase;
   }
 }
+
+/* Enable visible scrollbar for elements that need it */
+.show-scrollbar {
+  -ms-overflow-style: auto !important;
+  scrollbar-width: auto !important;
+}
+
+.show-scrollbar::-webkit-scrollbar {
+  display: block !important;
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.show-scrollbar::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.4) !important;
+  border-radius: 9999px !important;
+}
+
+.show-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3) !important;
+  border-radius: 9999px !important;
+}
+
+.show-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6) !important;
+}

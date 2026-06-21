@@ -1739,7 +1739,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
 
           {activeTab === "access" && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full min-w-0">
               {/* CARD DE PROVISIONAMENTO AMPLIADO */}
               <div
                 className={`lg:col-span-4 p-8 rounded-[3rem] border space-y-8 shadow-inner ${isDarkMode ? "bg-slate-800/30 border-slate-800" : "bg-slate-50 border-slate-200"}`}
@@ -1832,7 +1832,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {/* TABELA DE GESTÃO DE ACESSOS */}
               <div
-                className={`lg:col-span-8 rounded-[2.5rem] border shadow-sm overflow-hidden flex flex-col ${isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-200"}`}
+                className={`lg:col-span-8 min-w-0 w-full rounded-[2.5rem] border shadow-sm overflow-hidden flex flex-col ${isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-200"}`}
               >
                 <div
                   className={`p-8 border-b flex items-center justify-between ${isDarkMode ? "bg-slate-800/50 border-slate-800" : "bg-slate-50/50"}`}
@@ -1857,16 +1857,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <CheckCircle2 size={16} /> Salvar Alterações
                   </button>
                 </div>
-                <div className="flex-1 overflow-x-auto overflow-y-auto">
-                  <table className="w-full text-left min-w-[850px]">
+                <div className="flex-1 overflow-x-auto overflow-y-auto w-full min-w-0 show-scrollbar">
+                  <table className="w-full text-left min-w-[600px]">
                     <thead
                       className={`text-[10px] font-black text-slate-400 uppercase tracking-widest border-b ${isDarkMode ? "bg-slate-800/30 border-slate-800" : "bg-slate-50"}`}
                     >
                       <tr>
-                        <th className="px-5 py-4 w-[35%] min-w-[260px]">Usuário</th>
-                        <th className="px-4 py-4 w-[30%] min-w-[220px]">Perfil (Cargo)</th>
-                        <th className="px-4 py-4 w-[15%] min-w-[110px]">Status</th>
-                        <th className="px-5 py-4 w-[20%] min-w-[160px] text-right">Ações</th>
+                        <th className="px-4 py-3 w-[35%] min-w-[180px]">Usuário</th>
+                        <th className="px-3 py-3 w-[30%] min-w-[160px]">Perfil (Cargo)</th>
+                        <th className="px-3 py-3 w-[15%] min-w-[90px]">Status</th>
+                        <th className="px-4 py-3 w-[20%] min-w-[110px] text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody
@@ -1877,10 +1877,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           key={u.id}
                           className={`${u.active ? "transition-all" : "opacity-40 grayscale"} ${isDarkMode ? "hover:bg-slate-800/50" : "hover:bg-slate-50/50"}`}
                         >
-                          <td className="px-5 py-4 min-w-[260px]">
+                          <td className="px-4 py-3 min-w-[180px]">
                             <input
                               type="text"
-                              className={`bg-transparent border-none outline-none font-bold text-sm tracking-tight w-full text-left ${isDarkMode ? "text-slate-200" : "text-slate-800"}`}
+                              className={`bg-transparent border-none outline-none font-bold text-sm tracking-tight w-full min-w-[140px] text-left ${isDarkMode ? "text-slate-200" : "text-slate-800"}`}
                               value={u.username}
                               onChange={(e) =>
                                 handleUpdateLocalUser(
@@ -1891,7 +1891,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               }
                             />
                           </td>
-                          <td className="px-4 py-4 min-w-[220px]">
+                          <td className="px-3 py-3 min-w-[160px]">
                             <select
                               className={`bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-tighter cursor-pointer ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
                               value={u.role}
@@ -1910,7 +1910,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               <option value="Master">Master (Auditoria)</option>
                             </select>
                           </td>
-                          <td className="px-4 py-4 min-w-[110px]">
+                          <td className="px-3 py-3 min-w-[90px]">
                             <select
                               className={`bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-tighter cursor-pointer ${u.status === "Online" ? "text-emerald-500" : u.status === "Offline" ? "text-slate-400" : "text-red-500"}`}
                               value={u.status || "Offline"}
@@ -1927,7 +1927,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               <option value="Suspenso">Suspenso</option>
                             </select>
                           </td>
-                          <td className="px-5 py-4 min-w-[160px] text-right">
+                          <td className="px-4 py-3 min-w-[110px] text-right">
                             <div className="flex items-center justify-end gap-3">
                               <button
                                 onClick={() => handleEditUser(u)}
