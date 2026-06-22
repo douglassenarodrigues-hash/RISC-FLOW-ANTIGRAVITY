@@ -637,6 +637,12 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
+  const [partnerAnalysisResult, setPartnerAnalysisResult] = useState<{
+    status: string;
+    parecer_detalhado: string;
+  } | null>(null);
+  const [isPartnerAnalyzing, setIsPartnerAnalyzing] = useState(false);
+
   React.useEffect(() => {
     fetch("/api/gemini/status")
       .then(res => res.json())
@@ -688,14 +694,103 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
     }
   };
 
+  // Function to send document to the external analysis company in background
+  const sendToAnalysisPartner = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append("document", file);
+      formData.append("proposalId", proposal.id);
+      formData.append("ade", proposal.ade);
+
+      fetch("/api/send-to-partner", {
+        method: "POST",
+        body: formData,
+      })
+      .then(res => {
+        if (!res.ok) {
+          console.error("[Background Send] Erro no envio para o parceiro:", res.status);
+        } else {
+          console.log("[Background Send] Documento enviado para o parceiro com sucesso.");
+        }
+      })
+      .catch(err => console.error("[Background Send] Falha de rede no envio:", err));
+    } catch (err) {
+      console.error("[Background Send] Erro ao preparar envio:", err);
+    }
+  };
+
+  const sentFilesRef = React.useRef<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    if (docFile) {
+      const fileKey = `${proposal.id}-front-${docFile.name}-${docFile.size}`;
+      if (!sentFilesRef.current.has(fileKey)) {
+        sentFilesRef.current.add(fileKey);
+        sendToAnalysisPartner(docFile);
+      }
+    }
+    if (docBackFile) {
+      const fileKey = `${proposal.id}-back-${docBackFile.name}-${docBackFile.size}`;
+      if (!sentFilesRef.current.has(fileKey)) {
+        sentFilesRef.current.add(fileKey);
+        sendToAnalysisPartner(docBackFile);
+      }
+    }
+  }, [docFile, docBackFile, proposal.id, proposal.ade]);
+
   React.useEffect(() => {
     if (docFile || docBackFile) {
-      handleVerifyDocument(docFile, docBackFile);
+      setIsPartnerAnalyzing(true);
+      setPartnerAnalysisResult(null);
     } else {
-      setAiAnalysisResult(null);
-      setAnalysisError(null);
+      setIsPartnerAnalyzing(false);
+      setPartnerAnalysisResult(null);
     }
   }, [docFile, docBackFile]);
+
+  // Polling for webhook updates when the proposal card is expanded
+  React.useEffect(() => {
+    if (!isExpanded) return;
+
+    const interval = setInterval(async () => {
+      try {
+        // Try fetching by proposal.ade first
+        let response = await fetch(`/api/webhook-updates/${proposal.ade}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.found) {
+            setParecer(data.parecer_detalhado);
+            setPartnerAnalysisResult({
+              status: data.status,
+              parecer_detalhado: data.parecer_detalhado
+            });
+            setIsPartnerAnalyzing(false);
+            console.log(`[Polling] Parecer técnico atualizado via Webhook para ADE ${proposal.ade}`);
+            return;
+          }
+        }
+
+        // Fallback: try fetching by proposal.id
+        response = await fetch(`/api/webhook-updates/${proposal.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.found) {
+            setParecer(data.parecer_detalhado);
+            setPartnerAnalysisResult({
+              status: data.status,
+              parecer_detalhado: data.parecer_detalhado
+            });
+            setIsPartnerAnalyzing(false);
+            console.log(`[Polling] Parecer técnico atualizado via Webhook para ID ${proposal.id}`);
+          }
+        }
+      } catch (err) {
+        console.error("[Polling] Erro ao buscar atualizações do webhook:", err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isExpanded, proposal.id, proposal.ade]);
 
   // File Input Refs for uploaders
   const docInputRef = React.useRef<HTMLInputElement>(null);
@@ -1376,119 +1471,48 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                       {/* AREA PERICIAL & DIAGNOSTICOS */}
                       {(docFile || docBackFile) && (
                         <div className="space-y-4 pt-2 border-t border-slate-250/20 dark:border-slate-850/30">
-                          {isAnalyzing && (
+                          {isPartnerAnalyzing && (
                             <div className={`p-4 border rounded-xl text-xs flex flex-col items-center justify-center gap-3 ${
-                              isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                              isDarkMode ? 'bg-slate-900/40 border-blue-500/30 text-slate-350' : 'bg-blue-50/50 border-blue-200 text-slate-700'
                             }`}>
                               <div className="flex items-center gap-3">
                                 <span className="relative flex h-3 w-3">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
                                 </span>
-                                <span className="font-black uppercase tracking-wider text-[10px]">Realizando Perícia Documental por Inteligência Artificial...</span>
+                                <span className="font-black uppercase tracking-wider text-[10px] text-blue-400">
+                                  Aguardando Retorno da Análise da Empresa Parceira...
+                                </span>
                               </div>
-                              <p className="text-[10px] text-slate-400 font-medium text-center">Inspecionando assinaturas, legibilidade, integridade física e titularidade de RG, CNH ou Identidade Funcional.</p>
+                              <p className="text-[10px] text-slate-400 font-medium text-center">
+                                O documento foi enviado com sucesso para a perícia externa. O resultado da análise detalhada será carregado automaticamente aqui.
+                              </p>
                             </div>
                           )}
 
-                          {analysisError && (
-                            <div className="p-4 border rounded-xl text-xs space-y-3 bg-red-500/10 border-red-500/20 text-red-400">
-                              <div className="flex items-center gap-2 font-black uppercase tracking-wider text-[10px]">
-                                <span>🛑</span>
-                                <span>Mesa Pericial: Falha na Análise Automática</span>
-                              </div>
-                              <p className="font-semibold text-[11px] leading-relaxed">{analysisError}</p>
-                              <button 
-                                type="button"
-                                onClick={() => handleVerifyDocument(docFile, docBackFile)}
-                                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-extrabold uppercase text-[9px] tracking-widest transition-all"
-                              >
-                                Tentar Analisar Novamente
-                              </button>
-                            </div>
-                          )}
-
-                          {aiAnalysisResult && (
+                          {partnerAnalysisResult && (
                             <div className={`p-5 border rounded-2xl text-xs space-y-4 ${
-                              aiAnalysisResult.suggestedStatus === 'REPROVADO'
-                                ? (isDarkMode ? 'bg-red-500/5 border-red-500/20 text-slate-200' : 'bg-red-50/50 border-red-200 text-slate-800')
-                                : aiAnalysisResult.suggestedStatus === 'PENDENCIA'
-                                ? (isDarkMode ? 'bg-amber-500/5 border-amber-500/20 text-slate-200' : 'bg-amber-50/50 border-amber-200 text-slate-800')
-                                : (isDarkMode ? 'bg-emerald-500/5 border-emerald-500/20 text-slate-200' : 'bg-emerald-50/50 border-emerald-200 text-slate-800')
+                              isDarkMode ? 'bg-emerald-950/20 border-emerald-500/25 text-slate-200' : 'bg-emerald-50/40 border-emerald-250 text-slate-800'
                             }`}>
-                              <div className="flex items-center justify-between border-b pb-3 border-slate-700/10 dark:border-slate-800/50">
+                              <div className="flex items-center justify-between border-b pb-3 border-slate-700/10 dark:border-slate-800/40">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-base">🤖</span>
-                                  <h6 className="font-black uppercase tracking-widest text-[10px]">Diagnóstico Detalhado da Perícia de IA</h6>
+                                  <span className="text-base">🏢</span>
+                                  <h6 className="font-black uppercase tracking-widest text-[10px] text-emerald-400">
+                                    Retorno da Análise Pericial Externa
+                                  </h6>
                                 </div>
-                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                                  aiAnalysisResult.suggestedStatus === 'REPROVADO'
-                                    ? 'bg-red-500/20 text-red-400'
-                                    : aiAnalysisResult.suggestedStatus === 'PENDENCIA'
-                                    ? 'bg-amber-500/20 text-amber-400'
-                                    : 'bg-emerald-500/20 text-emerald-400'
-                                }`}>
-                                  Sugerido: {aiAnalysisResult.suggestedStatus === 'ANALISE' ? 'Aprovar' : aiAnalysisResult.suggestedStatus === 'PENDENCIA' ? 'Pendência' : 'Reprovar'}
+                                <span className="px-2.5 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400">
+                                  {partnerAnalysisResult.status || "CONCLUÍDO"}
                                 </span>
                               </div>
 
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
-                                <div className="flex items-center gap-2">
-                                  <span className={aiAnalysisResult.isValidDocument ? "text-emerald-500 font-bold" : "text-amber-500 font-bold"}>
-                                    {aiAnalysisResult.isValidDocument ? "✓" : "⚠"}
-                                  </span>
-                                  <span className="text-slate-400 font-semibold">Tipo de Docto:</span>
-                                  <span className="font-bold">{aiAnalysisResult.isValidDocument ? "RG, CNH ou Funcional" : "Outro / Desconhecido"}</span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <span className={!aiAnalysisResult.isIlegivel ? "text-emerald-500 font-bold" : "text-red-500 font-bold"}>
-                                    {!aiAnalysisResult.isIlegivel ? "✓" : "✗"}
-                                  </span>
-                                  <span className="text-slate-400 font-semibold">Legibilidade:</span>
-                                  <span className="font-bold">{!aiAnalysisResult.isIlegivel ? "100% Legível" : "Dados Ilegíveis"}</span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <span className={!aiAnalysisResult.isDeteriorated ? "text-emerald-500 font-bold" : "text-red-500 font-bold"}>
-                                    {!aiAnalysisResult.isDeteriorated ? "✓" : "✗"}
-                                  </span>
-                                  <span className="text-slate-400 font-semibold">Integridade Física:</span>
-                                  <span className="font-bold">{!aiAnalysisResult.isDeteriorated ? "Documento Íntegro" : "Deteriorado / Rasgado"}</span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <span className={!aiAnalysisResult.isCortado ? "text-emerald-500 font-bold" : "text-red-505 font-bold"}>
-                                    {!aiAnalysisResult.isCortado ? "✓" : "✗"}
-                                  </span>
-                                  <span className="text-slate-400 font-semibold">Enquadramento:</span>
-                                  <span className="font-bold">{!aiAnalysisResult.isCortado ? "Completo / Bordas OK" : "Foto Cortada"}</span>
-                                </div>
-                              </div>
-
-                              <div className={`p-3 rounded-xl gap-2.5 flex flex-col text-[11px] ${isDarkMode ? 'bg-slate-950/40' : 'bg-slate-100/60'}`}>
-                                <div className="flex items-center gap-2">
-                                  <span className={aiAnalysisResult.matchesTitularidade ? "text-emerald-500 font-bold" : "text-red-500 font-bold"}>
-                                    {aiAnalysisResult.matchesTitularidade ? "✓" : "✗"}
-                                  </span>
-                                  <span className="text-slate-400 font-semibold uppercase text-[9px] tracking-wider">Verificação de Titularidade:</span>
-                                  <span className="font-extrabold">{aiAnalysisResult.matchesTitularidade ? "CPF e Nome Conferem" : "Divergência de Titularidade"}</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 border-t border-slate-700/10 dark:border-slate-800/10 pt-2 font-mono text-[10px]">
-                                  <div>
-                                    <span className="text-slate-400">Nome Detetado:</span>
-                                    <p className="font-bold truncate text-indigo-500 uppercase">{aiAnalysisResult.detectedName || "---"}</p>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400">CPF Detetado:</span>
-                                    <p className="font-bold text-indigo-500">{aiAnalysisResult.detectedCpf || "---"}</p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="text-[11px] leading-relaxed opacity-90 border-t border-slate-700/10 dark:border-slate-800/10 pt-3">
-                                <p className="font-bold text-[9px] uppercase tracking-wider text-slate-400 mb-1">Parecer Pericial Consolidado IA:</p>
-                                <p className="font-medium italic">"{aiAnalysisResult.summary}"</p>
+                              <div className="text-[11px] leading-relaxed opacity-90">
+                                <p className="font-bold text-[9px] uppercase tracking-wider text-slate-400 mb-1.5">
+                                  Parecer Técnico Oficial:
+                                </p>
+                                <p className="font-semibold italic p-3 rounded-xl bg-slate-950/20 border border-slate-800/50">
+                                  "{partnerAnalysisResult.parecer_detalhado}"
+                                </p>
                               </div>
                             </div>
                           )}
@@ -2155,9 +2179,10 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                                 onFinalize(proposal.id, 'APPROVED', mot, aiAnalysisResult, contactData);
                               }}
                               disabled={isApproveDisabled}
-                              className="flex items-center justify-center gap-2 py-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20"
+                              className="flex items-center justify-center gap-2 py-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20 text-center"
                             >
-                              <CheckCircle2 size={16} /> Confirmar Aprovação
+                              <CheckCircle2 size={13} className="shrink-0" />
+                              <span className="text-center">APROVAR</span>
                             </button>
                             <button 
                               onClick={() => {
@@ -2175,9 +2200,10 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                                 );
                               }}
                               disabled={isReprovarDisabled}
-                              className="flex items-center justify-center gap-2 py-4 bg-red-650 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 shadow-lg shadow-red-500/20"
+                              className="flex items-center justify-center gap-2 py-4 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 transition-all disabled:opacity-50 shadow-lg shadow-red-500/20 text-center"
                             >
-                              <AlertTriangle size={16} /> Confirmar Reprovação
+                              <AlertTriangle size={13} className="shrink-0" />
+                              <span className="text-center">REPROVAR</span>
                             </button>
                             <button 
                               onClick={() => {
@@ -2187,9 +2213,10 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                                 onFinalize(proposal.id, 'WAITING_DOCS', mot, aiAnalysisResult, contactData);
                               }}
                               disabled={isPendênciaDisabled}
-                              className={`flex items-center justify-center gap-2 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg ${isDarkMode ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                              className="flex items-center justify-center gap-2 py-4 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 transition-all disabled:opacity-50 shadow-lg shadow-amber-500/20 text-center"
                             >
-                              <Clock size={16} /> Salvar Pendência
+                              <Clock size={13} className="shrink-0" />
+                              <span className="text-center">PENDENCIAR</span>
                             </button>
                             <button 
                               onClick={() => {
@@ -2199,15 +2226,17 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                                 onFinalize(proposal.id, 'CONTACT', mot, aiAnalysisResult, contactData);
                               }}
                               disabled={false}
-                              className={`flex items-center justify-center gap-2 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg ${isDarkMode ? 'bg-cyan-900 text-cyan-100 hover:bg-cyan-800' : 'bg-cyan-600 text-white hover:bg-cyan-700'}`}
+                              className="flex items-center justify-center gap-2 py-4 bg-cyan-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-cyan-500 transition-all disabled:opacity-50 shadow-lg shadow-cyan-500/20 text-center"
                             >
-                              <PhoneCall size={16} /> Enviar para Contato
+                              <PhoneCall size={13} className="shrink-0" />
+                              <span className="text-center">Enviar para Contato</span>
                             </button>
                             <button 
                               onClick={() => onQuickSchedule(proposal)}
-                              className={`col-span-2 flex items-center justify-center gap-2 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${isDarkMode ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                              className="col-span-2 flex items-center justify-center gap-2 py-4 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 text-center"
                             >
-                              <CalendarPlus size={16} /> Agendar Contato Telefônico
+                              <CalendarPlus size={13} className="shrink-0" />
+                              <span className="text-center">Agendar Contato Telefônico</span>
                             </button>
                             {(currentUser.role === 'Master' || permissions.deleteProposals) && onDelete && (
                               <button 

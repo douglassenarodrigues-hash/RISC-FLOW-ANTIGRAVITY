@@ -234,6 +234,113 @@ SUAS TAREFAS:
   }
 });
 
+// In-memory store for webhook responses from the analysis company
+// Map of proposalId/ade -> { status, parecer_detalhado }
+const webhookUpdates: Record<string, { status: string; parecer_detalhado: string }> = {};
+
+// Endpoint for frontend to send document to partner in background
+app.post("/api/send-to-partner", upload.single("document"), async (req, res) => {
+  try {
+    const { proposalId, ade } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: "Nenhum documento anexado." });
+    }
+
+    const partnerUrl = process.env.ANALYSIS_COMPANY_URL || `http://localhost:${PORT}/api/mock-analysis-partner`;
+
+    console.log(`[Server] Redirecionando documento para empresa de análise (${partnerUrl})...`);
+
+    // Forward the file and fields to the external analysis company
+    const formData = new FormData();
+    formData.append("proposalId", proposalId || "");
+    formData.append("ade", ade || "");
+    
+    // Convert buffer to Blob/File for FormData
+    const blob = new Blob([file.buffer], { type: file.mimetype });
+    formData.append("document", blob, file.originalname);
+
+    // Call the external partner API
+    const response = await fetch(partnerUrl, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error(`Partner API returned status ${response.status}`);
+    }
+
+    const data = await response.json();
+    return res.json({ success: true, data });
+  } catch (error: any) {
+    console.error("Erro ao enviar documento para empresa de análise:", error);
+    return res.status(500).json({ error: "Falha ao encaminhar documento.", details: error.message });
+  }
+});
+
+// Incoming Webhook from analysis company
+app.post("/api/webhook/analysis-return", (req, res) => {
+  const { proposalId, status, parecer_detalhado } = req.body;
+  
+  if (!proposalId) {
+    return res.status(400).json({ error: "ID da proposta (proposalId) é obrigatório." });
+  }
+  if (!parecer_detalhado) {
+    return res.status(400).json({ error: "parecer_detalhado é obrigatório." });
+  }
+
+  // Register in memory using proposalId/ade
+  webhookUpdates[proposalId] = { status, parecer_detalhado };
+  console.log(`[Server Webhook] Atualização registrada para proposta/ADE ${proposalId}. Status: ${status}`);
+
+  res.json({ success: true, message: "Retorno registrado com sucesso." });
+});
+
+// Fetch pending webhook updates for a specific proposal
+app.get("/api/webhook-updates/:idOrAde", (req, res) => {
+  const { idOrAde } = req.params;
+  const update = webhookUpdates[idOrAde];
+  
+  if (update) {
+    // Consume the update so it's only retrieved once
+    delete webhookUpdates[idOrAde];
+    return res.json({ found: true, ...update });
+  }
+  
+  res.json({ found: false });
+});
+
+// Mock external analysis company endpoint
+app.post("/api/mock-analysis-partner", upload.single("document"), (req, res) => {
+  const { proposalId, ade } = req.body;
+  const file = req.file;
+  console.log(`[Mock Analysis Partner] Recebido documento para proposta ID: ${proposalId}, ADE: ${ade}. Nome do arquivo: ${file?.originalname || "N/A"}`);
+  
+  // Simulate asynchronous analysis and call webhook back in 4 seconds
+  setTimeout(async () => {
+    try {
+      const webhookUrl = `http://localhost:${PORT}/api/webhook/analysis-return`;
+      const payload = {
+        proposalId: ade || proposalId,
+        status: "CONCLUIDO",
+        parecer_detalhado: `[MOCK PARTNER ANÁLISE] Parecer detalhado para o documento '${file?.originalname || "documento.pdf"}'. Assinatura validada com sucesso. Sem indícios de adulteração física. Documentação em total conformidade.`
+      };
+      
+      console.log(`[Mock Analysis Partner] Enviando webhook de retorno para ${webhookUrl}...`);
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    } catch (err: any) {
+      console.error("[Mock Analysis Partner] Erro ao disparar webhook de retorno:", err.message);
+    }
+  }, 4000);
+
+  res.json({ success: true, message: "Documento recebido para processamento de análise." });
+});
+
 async function startServer() {
   // Vite integration middleware
   if (process.env.NODE_ENV !== "production") {
