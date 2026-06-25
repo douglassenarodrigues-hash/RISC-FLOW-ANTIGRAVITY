@@ -90,166 +90,14 @@ const App: React.FC = () => {
     }, actionLabel ? 20000 : 4500);
   }, []);
 
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    const defaultUsers: UserAccount[] = [
-      {
-        id: 'master-1',
-        username: 'administrador',
-        password: '1234',
-        role: 'Master',
-        actingAreas: ['TODAS'],
-        permissions: { viewFullCpf: true, viewValues: true, editRules: true, deleteProposals: true, viewFraudPreventionChart: true },
-        active: true
-      },
-      {
-        id: 'master-2',
-        username: 'Administrador',
-        password: '1234',
-        role: 'Master',
-        actingAreas: ['TODAS'],
-        permissions: { viewFullCpf: true, viewValues: true, editRules: true, deleteProposals: true, viewFraudPreventionChart: true },
-        active: true
-      },
-      {
-        id: 'analista-1',
-        username: 'George Andrey',
-        password: '123',
-        role: 'Analista',
-        actingAreas: ['TODAS'],
-        permissions: { viewFullCpf: false, viewValues: true, editRules: false, deleteProposals: true, viewFraudPreventionChart: false },
-        active: true
-      }
-    ];
-
-    const saved = localStorage.getItem(STORAGE_KEY_USERS);
-    if (saved) {
-      try { 
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge default users with saved users, prioritizing saved users by ID
-          const userMap = new Map<string, UserAccount>();
-          defaultUsers.forEach(u => userMap.set(u.id, u));
-          parsed.forEach(u => {
-            const updated = { ...u };
-            if (updated.username.toLowerCase() === 'administrador') {
-              updated.password = '1234';
-            }
-            userMap.set(updated.id, updated);
-          });
-          
-          const mergedUsers = Array.from(userMap.values());
-          
-          // Fail-safe: Ensure at least one admin exists by username
-          const hasAdmin = mergedUsers.some(u => u.username.toLowerCase() === 'administrador');
-          if (!hasAdmin) {
-            // If somehow the 'administrador' username was lost, ensure master-1 is present as admin
-            const admin = defaultUsers.find(u => u.id === 'master-1')!;
-            userMap.set(admin.id, admin);
-            return Array.from(userMap.values());
-          }
-          return mergedUsers;
-        }
-      } catch (e) { }
-    }
-    return defaultUsers;
-  });
-
-  const [proposals, setProposals] = useState<Proposal[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_PROPOSALS);
-    let parsed: Proposal[] = [];
-    if (saved) {
-      try { 
-        parsed = JSON.parse(saved); 
-      } catch (e) { 
-        console.error(e); 
-      }
-    } else {
-      parsed = [
-        {
-          id: 'p1',
-          ade: '603163608',
-          nomeCliente: 'LUCAS ARAUJO VIANA',
-          banco: 'C6',
-          status: 'AUTO_APPROVED',
-          convenio: 'INSS',
-          produto: 'NOVO',
-          corretor: 'SISTEMA',
-          valor: 150.00,
-          valorFinanciado: 5000.00,
-          cpf: '123.456.789-00',
-          sla: 'NORMAL',
-          obs: 'Aprovado automaticamente',
-          dataSistema: new Date().toISOString().split('T')[0],
-          documentacao: 'OK'
-        },
-        {
-          id: 'p2',
-          ade: '603163936',
-          nomeCliente: 'GEOVANA COSTA REGO',
-          banco: 'C6',
-          status: 'AUTO_APPROVED',
-          convenio: 'INSS',
-          produto: 'NOVO',
-          corretor: 'SISTEMA',
-          valor: 200.00,
-          valorFinanciado: 7500.00,
-          cpf: '987.654.321-11',
-          sla: 'NORMAL',
-          obs: 'Aprovado automaticamente',
-          dataSistema: new Date().toISOString().split('T')[0],
-          documentacao: 'OK'
-        },
-        {
-          id: 'p3',
-          ade: '603163759',
-          nomeCliente: 'MAGNO HITALO LOPES',
-          banco: 'C6',
-          status: 'AUTO_APPROVED',
-          convenio: 'INSS',
-          produto: 'NOVO',
-          corretor: 'SISTEMA',
-          valor: 180.00,
-          valorFinanciado: 6000.00,
-          cpf: '456.789.123-22',
-          sla: 'NORMAL',
-          obs: 'Aprovado automaticamente',
-          dataSistema: new Date().toISOString().split('T')[0],
-          documentacao: 'OK'
-        }
-      ];
-    }
-    const now = Date.now();
-    return parsed.map(p => {
-      let offset = 0;
-      if (p.id === 'p1') offset = 1.5 * 3600000;
-      else if (p.id === 'p2') offset = 0.5 * 3600000;
-      else if (p.id === 'p3') offset = 2 * 3600000;
-      
-      const pCreatedAt = p.createdAt || (now - offset);
-      const pLastUpdatedStatusAt = p.lastUpdatedStatusAt || (now - offset);
-      const pSlaRemainingMs = p.slaRemainingMs !== undefined ? p.slaRemainingMs : (3 * 3600000 - offset);
-      
-      return {
-        ...p,
-        createdAt: pCreatedAt,
-        lastUpdatedStatusAt: pLastUpdatedStatusAt,
-        slaRemainingMs: Math.max(0, pSlaRemainingMs)
-      };
-    });
-  });
-
-  const [agenda, setAgenda] = useState<AgendaEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_AGENDA);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return []; }
-    }
-    return [];
-  });
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [agenda, setAgenda] = useState<AgendaEntry[]>([]);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [autoExpandId, setAutoExpandId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [settingsTab, setSettingsTab] = useState<'partner' | 'covenant' | 'access' | 'governance' | ''>('');
+  const [settingsTab, setSettingsTab] = useState<'partner' | 'covenant' | 'access' | 'governance' | 'email' | ''>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>({
     type: 'all',
@@ -264,91 +112,37 @@ const App: React.FC = () => {
     }
   }, [activeCpfAnalysis]);
   
-  const [history, setHistory] = useState<DecisionEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_HISTORY);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return [];
-  });
+  const [history, setHistory] = useState<DecisionEntry[]>([]);
+  const [importedBases, setImportedBases] = useState<BaseImport[]>([]);
+  const [rules, setRules] = useState<AppRules>({ partners: {}, covenants: {} });
+  const [bankLayouts, setBankLayouts] = useState<Record<string, BankMapping>>({});
 
-  const [importedBases, setImportedBases] = useState<BaseImport[]>(() => {
-    const saved = localStorage.getItem('riskflow_imported_bases');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return [];
-  });
-
-  const [rules, setRules] = useState<AppRules>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_RULES);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return {
-      partners: {
-        'SISTEMA': { name: 'Direto Loja', classification: 'Master', selfie: true, doc: false, sla: 'Urgente', limite: 50000.00, status: 'ACTING' },
-        'AD01': { name: 'Parceiro Centro', classification: 'Ouro', selfie: true, doc: false, sla: 'Normal', limite: 25000.00, status: 'ACTING' },
-      },
-      covenants: {
-        'INSS': { documents: ['RG/CNH'], teto: 4000.00 },
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [resProposals, resUsers, resAgenda, resHistory, resBases, resRules, resLayouts] = await Promise.all([
+          fetch('/api/proposals').then(r => r.json()),
+          fetch('/api/users').then(r => r.json()),
+          fetch('/api/agenda').then(r => r.json()),
+          fetch('/api/decision-history').then(r => r.json()),
+          fetch('/api/imported-bases').then(r => r.json()),
+          fetch('/api/rules').then(r => r.json()),
+          fetch('/api/layouts').then(r => r.json())
+        ]);
+        setProposals(resProposals);
+        setUsers(resUsers);
+        setAgenda(resAgenda);
+        setHistory(resHistory);
+        setImportedBases(resBases);
+        setRules(resRules);
+        setBankLayouts(resLayouts);
+      } catch (err) {
+        console.error("Erro ao carregar dados do backend:", err);
+        addToast("Erro ao carregar dados do banco.", "error");
       }
     };
-  });
-
-  const [bankLayouts, setBankLayouts] = useState<Record<string, BankMapping>>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_LAYOUTS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return {
-      "ITAÚ": {
-        bankName: 'ITAÚ',
-        ade: 'ADE',
-        cpf: 'CPF',
-        cliente: 'Nome',
-        atividade: 'Situação',
-        fase: 'Consistência',
-        valor: 'Valor Solic.',
-        valorFinanciado: 'Valor Solic.',
-        convenio: 'Convênio',
-        corretor: 'Corretor',
-        produto: 'Produto',
-        filterValue: '',
-        sep: ';'
-      },
-      "PAN": {
-        bankName: 'PAN',
-        ade: 'Proposta',
-        cpf: 'CPF',
-        cliente: 'Cliente',
-        atividade: 'Situação',
-        fase: 'Atividade',
-        valor: 'Vlr Financiado',
-        valorFinanciado: 'Vlr Financiado',
-        convenio: 'EMPREGADOR',
-        corretor: 'CORRESPONDENTE',
-        produto: 'TIPO DE OPERAÇÃO',
-        filterValue: '',
-        sep: ';'
-      },
-      "SAFRA": {
-        bankName: 'SAFRA',
-        ade: 'Nr Proposta',
-        cpf: 'Cpf',
-        cliente: 'Nome Cliente',
-        atividade: 'Status Proposta',
-        fase: 'Atividade',
-        valor: 'Vlr Contrato',
-        valorFinanciado: 'Vlr Contrato',
-        convenio: 'CONVÊNIO',
-        corretor: 'CORRETOR',
-        produto: 'PRODUTO',
-        filterValue: '',
-        sep: ';'
-      }
-    };
-  });
+    loadData();
+  }, [addToast]);
 
   useEffect(() => {
     const checkInterval = setInterval(() => {
@@ -382,13 +176,7 @@ const App: React.FC = () => {
     return () => clearInterval(checkInterval);
   }, [agenda, addToast]);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_RULES, JSON.stringify(rules)); }, [rules]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_LAYOUTS, JSON.stringify(bankLayouts)); }, [bankLayouts]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history)); }, [history]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_PROPOSALS, JSON.stringify(proposals)); }, [proposals]);
-  useEffect(() => { localStorage.setItem('riskflow_imported_bases', JSON.stringify(importedBases)); }, [importedBases]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users)); }, [users]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY_AGENDA, JSON.stringify(agenda)); }, [agenda]);
+
 
   const handleLogin = (user: UserAccount) => {
     setCurrentUser(user);
@@ -440,6 +228,11 @@ const App: React.FC = () => {
       fraudSubMotive
     };
     setHistory(prev => [entry, ...prev]);
+    fetch('/api/decision-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry)
+    }).catch(err => console.error("Erro ao registrar decisão no banco:", err));
   }, [currentUser]);
 
   const handleProposalsLoaded = useCallback((data: Proposal[], fileName: string, rawContent: string, bankName: string) => {
@@ -548,16 +341,36 @@ const App: React.FC = () => {
     });
 
     setHistory(prev => [...initialLogs, ...prev]);
+
+    // DB calls
+    fetch('/api/imported-bases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newBase)
+    }).catch(err => console.error(err));
+
+    fetch('/api/proposals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(triagedData)
+    }).catch(err => console.error(err));
+
+    for (const log of initialLogs) {
+      fetch('/api/decision-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(log)
+      }).catch(err => console.error(err));
+    }
+
     addToast(`Planilha "${fileName}" importada com sucesso.`, "success");
     setCurrentView('dashboard');
   }, [rules, addToast, currentUser, proposals]);
 
   const handleUpdateBaseContent = useCallback((baseId: string, updatedRawContent: string, newFileName?: string) => {
-    // 1. Find the base
     const base = importedBases.find(b => b.id === baseId);
     if (!base) return;
 
-    // 2. Parse the updated CSV content
     const layout = bankLayouts[base.bankName];
     if (!layout) {
       addToast(`Erro: Não foi encontrado layout do banco "${base.bankName}".`, 'error');
@@ -626,7 +439,6 @@ const App: React.FC = () => {
       const rawCpf = getValue('cpf').replace(/\D/g, '');
       const rawConvenio = getValue('convenio');
 
-      // Triage Rules
       const match = getValue('corretor').match(/\d+/);
       const partnerCode = match ? match[0] : getValue('corretor');
       const partnerRule = rules.partners[partnerCode.toUpperCase()] || rules.partners[getValue('corretor').toUpperCase()] || { status: 'ACTING' as any, limite: 4000.00, sla: 'Normal' as any, selfie: true, doc: false };
@@ -688,7 +500,6 @@ const App: React.FC = () => {
       });
     }
 
-    // Now let's calculate newCount and dupCount
     const otherProposals = proposals.filter(p => !base.proposalIds.includes(p.id));
 
     let newCount = 0;
@@ -702,7 +513,6 @@ const App: React.FC = () => {
       }
     });
 
-    // We replace the deleted proposals belonging to this base with the new parsedProposals
     setProposals(prev => {
       const filtered = prev.filter(p => !base.proposalIds.includes(p.id));
       const merged = [...filtered];
@@ -718,20 +528,31 @@ const App: React.FC = () => {
       return merged;
     });
 
-    // Update the base record
-    setImportedBases(prev => prev.map(b => {
-      if (b.id === baseId) {
-        return {
-          ...b,
-          fileName: newFileName || b.fileName,
-          newCount,
-          dupCount,
-          rawContent: updatedRawContent,
-          proposalIds: parsedProposals.map(p => p.id)
-        };
-      }
-      return b;
-    }));
+    const updatedBase = {
+      ...base,
+      fileName: newFileName || base.fileName,
+      newCount,
+      dupCount,
+      rawContent: updatedRawContent,
+      proposalIds: parsedProposals.map(p => p.id)
+    };
+
+    setImportedBases(prev => prev.map(b => b.id === baseId ? updatedBase : b));
+
+    // DB calls
+    for (const pId of base.proposalIds) {
+      fetch(`/api/proposals/${pId}`, { method: 'DELETE' }).catch(err => console.error(err));
+    }
+    fetch('/api/proposals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parsedProposals)
+    }).catch(err => console.error(err));
+    fetch('/api/imported-bases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedBase)
+    }).catch(err => console.error(err));
 
     addToast(`Planilha "${newFileName || base.fileName}" atualizada.`, 'success');
   }, [importedBases, bankLayouts, proposals, rules, addToast]);
@@ -743,19 +564,29 @@ const App: React.FC = () => {
     setProposals(prev => prev.filter(p => !base.proposalIds.includes(p.id)));
     setImportedBases(prev => prev.filter(b => b.id !== baseId));
 
+    fetch(`/api/imported-bases/${baseId}`, { method: 'DELETE' }).catch(err => console.error(err));
+    for (const pId of base.proposalIds) {
+      fetch(`/api/proposals/${pId}`, { method: 'DELETE' }).catch(err => console.error(err));
+    }
+
     addToast(`Planilha "${base.fileName}" e ${base.proposalIds.length} propostas foram removidas.`, 'success');
   }, [importedBases, addToast]);
 
-  const handleDeleteAllProposals = useCallback(() => {
+  const handleDeleteAllProposals = useCallback(async () => {
     if (confirm("⚠️ ATENÇÃO: Deseja apagar TODAS as propostas do sistema?\n\nTodas as propostas, agendamentos e planilhas importadas serão removidos.\n\nIsso não pode ser desfeito!")) {
       setProposals([]);
       setImportedBases([]);
       setAgenda([]);
-      addToast("Todas as propostas foram apagadas.", "success", "🗑️");
+      try {
+        await fetch('/api/proposals/clear-all', { method: 'POST' });
+        addToast("Todas as propostas foram apagadas.", "success", "🗑️");
+      } catch (err) {
+        console.error(err);
+      }
     }
   }, [addToast]);
 
-  const handleTakeOver = useCallback((id: string) => {
+  const handleTakeOver = useCallback(async (id: string) => {
     if (!currentUser) return;
     
     const target = proposals.find(p => p.id === id);
@@ -766,7 +597,6 @@ const App: React.FC = () => {
       return;
     }
     
-    // CPF LOCK LOGIC
     if (activeCpfAnalysis && activeCpfAnalysis !== target.cpf) {
       addToast(`Você já está analisando o CPF ${activeCpfAnalysis}. Termine ou libere antes de pegar outra.`, 'error');
       return;
@@ -777,9 +607,19 @@ const App: React.FC = () => {
     setActiveCpfAnalysis(target.cpf);
 
     setProposals(prev => prev.map(p => p.id === id ? { ...p, lockedBy: currentUser.username } : p));
+
+    try {
+      await fetch(`/api/proposals/${id}/lock`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lockedBy: currentUser.username })
+      });
+    } catch (err) {
+      console.error(err);
+    }
   }, [currentUser, proposals, activeCpfAnalysis, registerDecision, addToast]);
 
-  const handleRelease = useCallback((id: string) => {
+  const handleRelease = useCallback(async (id: string) => {
     if (!currentUser) return;
 
     const target = proposals.find(p => p.id === id);
@@ -794,16 +634,25 @@ const App: React.FC = () => {
     registerDecision(target, 'LIBEROU', `Liberada por ${currentUser.username === operatorWhoLocked ? 'analista' : currentUser.username}`, currentUser.username, "LIBEROU");
     addToast(`ADE ${target.ade} liberada`, 'success');
     
-    // Se o usuário atual liberar a proposta e era do CPF em análise, limpa seu activeCpfAnalysis
     const remainingLockedForCpf = proposals.filter(p => p.id !== id && p.cpf === target.cpf && p.lockedBy === currentUser.username);
     if (remainingLockedForCpf.length === 0 && activeCpfAnalysis === target.cpf) {
       setActiveCpfAnalysis(null);
     }
 
     setProposals(prev => prev.map(p => p.id === id ? { ...p, lockedBy: null } : p));
+
+    try {
+      await fetch(`/api/proposals/${id}/lock`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lockedBy: null })
+      });
+    } catch (err) {
+      console.error(err);
+    }
   }, [currentUser, proposals, activeCpfAnalysis, registerDecision, addToast]);
 
-  const handleAtenderAgenda = useCallback((ade: string) => {
+  const handleAtenderAgenda = useCallback(async (ade: string) => {
     if (!currentUser) return;
     
     const target = proposals.find(p => p.ade === ade);
@@ -822,14 +671,14 @@ const App: React.FC = () => {
       return;
     }
 
+    const transitioned = transitionProposalStatus(target, 'CONTACT');
     setProposals(prev => prev.map(p => 
       p.id === target.id 
-        ? { ...transitionProposalStatus(p, 'CONTACT'), lockedBy: currentUser.username } 
+        ? { ...transitioned, lockedBy: currentUser.username } 
         : p
     ));
 
     setActiveCpfAnalysis(target.cpf);
-
     registerDecision(target, 'CONTACT', 'Iniciou contato agendado', currentUser.username, "RETORNO");
 
     setAgenda(prev => prev.map(item => 
@@ -838,9 +687,35 @@ const App: React.FC = () => {
 
     setAutoExpandId(target.id);
     setCurrentView('contact');
-
     addToast(`Você pegou a ADE ${ade} para contato.`, 'success');
-  }, [currentUser, proposals, activeCpfAnalysis, registerDecision, addToast]);
+
+    try {
+      await fetch(`/api/proposals/${target.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'CONTACT',
+          lastUpdatedStatusAt: transitioned.lastUpdatedStatusAt,
+          slaRemainingMs: transitioned.slaRemainingMs
+        })
+      });
+      await fetch(`/api/proposals/${target.id}/lock`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lockedBy: currentUser.username })
+      });
+      const agendaItem = agenda.find(item => item.ade === ade && item.status === 'Pendente');
+      if (agendaItem) {
+        await fetch(`/api/agenda/${agendaItem.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'Concluído' })
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [currentUser, proposals, activeCpfAnalysis, registerDecision, addToast, agenda]);
 
   useEffect(() => {
     handleAtenderAgendaRef.current = handleAtenderAgenda;
@@ -850,7 +725,7 @@ const App: React.FC = () => {
     setSchedulingProposal(proposal);
   }, []);
 
-  const handleFinalize = useCallback((id: string, status: RiskStatus, parecer: string, aiAnalysisResult?: any, contactAttachment?: any, fraudCategory?: string, fraudSubMotive?: string) => {
+  const handleFinalize = useCallback(async (id: string, status: RiskStatus, parecer: string, aiAnalysisResult?: any, contactAttachment?: any, fraudCategory?: string, fraudSubMotive?: string) => {
     if (!currentUser) return;
 
     const target = proposals.find(p => p.id === id);
@@ -865,19 +740,39 @@ const App: React.FC = () => {
       acaoLabel = 'PENDENCIOU';
     }
 
-    registerDecision(target, status, parecer, currentUser.username, acaoLabel, aiAnalysisResult, contactAttachment, fraudCategory, fraudSubMotive);
-    addToast(`ADE ${target.ade} finalizada: ${status}`, 'success');
-    
-    // Se não houver mais propostas deste CPF travadas pelo usuário, libera a trava de CPF
+    const transitioned = transitionProposalStatus(target, status);
+    setProposals(prev => prev.map(p => p.id === id ? { ...transitioned, lockedBy: null, fraudCategory, fraudSubMotive } : p));
     const remainingLockedForCpf = proposals.filter(p => p.id !== id && p.cpf === target.cpf && p.lockedBy === currentUser.username);
     if (remainingLockedForCpf.length === 0) {
       setActiveCpfAnalysis(null);
     }
+    registerDecision(target, status, parecer, currentUser.username, acaoLabel, aiAnalysisResult, contactAttachment, fraudCategory, fraudSubMotive);
+    addToast(`ADE ${target.ade} finalizada: ${status}`, 'success');
 
-    setProposals(prev => prev.map(p => p.id === id ? { ...transitionProposalStatus(p, status), lockedBy: null, fraudCategory, fraudSubMotive } : p));
+    try {
+      await fetch(`/api/proposals/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status,
+          lastUpdatedStatusAt: transitioned.lastUpdatedStatusAt,
+          slaRemainingMs: transitioned.slaRemainingMs,
+          fraudCategory: fraudCategory || null,
+          fraudSubMotive: fraudSubMotive || null,
+          obs: target.obs
+        })
+      });
+      await fetch(`/api/proposals/${id}/lock`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lockedBy: null })
+      });
+    } catch (err) {
+      console.error(err);
+    }
   }, [currentUser, proposals, registerDecision, addToast]);
 
-  const handleSaveSchedule = (ade: string, contato: string, data: string, hora: string, motivo: string) => {
+  const handleSaveSchedule = async (ade: string, contato: string, data: string, hora: string, motivo: string) => {
     const newEntry: AgendaEntry = {
       id: `agenda-${Date.now()}`,
       ade,
@@ -891,35 +786,211 @@ const App: React.FC = () => {
     
     setAgenda(prev => [...prev, newEntry]);
     
-    // Atualiza o status da proposta para AGENDADO
-    setProposals(prev => prev.map(p => 
-      p.ade === ade ? { ...transitionProposalStatus(p, 'AGENDADO'), lockedBy: null } : p
-    ));
-
     const target = proposals.find(p => p.ade === ade);
+    let transitioned;
     if (target) {
+      transitioned = transitionProposalStatus(target, 'AGENDADO');
+      setProposals(prev => prev.map(p => 
+        p.ade === ade ? { ...transitioned, lockedBy: null } : p
+      ));
       registerDecision(target, 'AGENDADO', `Agendado: ${motivo} (${data} às ${hora})`, currentUser?.username || 'SISTEMA', "AGENDOU");
     }
-    
+
     setSchedulingProposal(null);
     setActiveCpfAnalysis(null);
     addToast(`ADE ${ade} agendada`, 'success');
+
+    try {
+      await fetch('/api/agenda', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEntry)
+      });
+      if (target) {
+        await fetch(`/api/proposals/${target.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'AGENDADO',
+            lastUpdatedStatusAt: transitioned?.lastUpdatedStatusAt,
+            slaRemainingMs: transitioned?.slaRemainingMs
+          })
+        });
+        await fetch(`/api/proposals/${target.id}/lock`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lockedBy: null })
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const updateProposalStatus = useCallback((id: string, status: RiskStatus, motivo: string = "") => {
-    // Mantendo para compatibilidade ou redirecionando para finalize se houver lock
+  const updateProposalStatus = useCallback(async (id: string, status: RiskStatus, motivo: string = "") => {
     const target = proposals.find(p => p.id === id);
     if (!target) return;
 
     if (target.lockedBy === currentUser?.username) {
       handleFinalize(id, status, motivo);
     } else {
+      const transitioned = transitionProposalStatus(target, status);
+      setProposals(prev => prev.map(p => p.id === id ? transitioned : p));
       registerDecision(target, status, motivo);
       addToast(`ADE ${target.ade} alterada para ${status}.`, 'info');
       setSelectedId(null);
-      setProposals(prev => prev.map(p => p.id === id ? transitionProposalStatus(p, status) : p));
+      try {
+        await fetch(`/api/proposals/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status,
+            lastUpdatedStatusAt: transitioned.lastUpdatedStatusAt,
+            slaRemainingMs: transitioned.slaRemainingMs
+          })
+        });
+      } catch (err) {
+        console.error(err);
+      }
     }
   }, [proposals, currentUser, handleFinalize, registerDecision, addToast]);
+
+  const handleUpdateProposals = useCallback(async (newProposals: Proposal[]) => {
+    const deletedIds = proposals.filter(p => !newProposals.some(np => np.id === p.id)).map(p => p.id);
+    setProposals(newProposals);
+    try {
+      for (const id of deletedIds) {
+        await fetch(`/api/proposals/${id}`, { method: 'DELETE' });
+      }
+      if (newProposals.length > 0) {
+        await fetch('/api/proposals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newProposals)
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Erro ao salvar propostas no banco.", "error");
+    }
+  }, [proposals, addToast]);
+
+  const handleUpdateRules = useCallback(async (newRules: AppRules) => {
+    setRules(newRules);
+    try {
+      await fetch('/api/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rule_key: 'partners', rule_data: newRules.partners })
+      });
+      await fetch('/api/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rule_key: 'covenants', rule_data: newRules.covenants })
+      });
+    } catch (err) {
+      console.error(err);
+      addToast("Erro ao salvar regras no banco.", "error");
+    }
+  }, [addToast]);
+
+  const handleUpdateUsers = useCallback(async (newUsers: UserAccount[]) => {
+    const deletedUserIds = users.filter(u => !newUsers.some(nu => nu.id === u.id)).map(u => u.id);
+    setUsers(newUsers);
+    try {
+      for (const id of deletedUserIds) {
+        await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      }
+      for (const u of newUsers) {
+        const exists = users.some(oldU => oldU.id === u.id);
+        if (exists) {
+          await fetch(`/api/users/${u.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(u)
+          });
+        } else {
+          await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(u)
+          });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Erro ao salvar usuários.", "error");
+    }
+  }, [users, addToast]);
+
+  const handleUpdateBankLayouts = useCallback(async (newLayouts: Record<string, BankMapping>) => {
+    const deletedBanks = Object.keys(bankLayouts).filter(bank => !newLayouts[bank]);
+    setBankLayouts(newLayouts);
+    try {
+      for (const bank of deletedBanks) {
+        await fetch(`/api/layouts/${bank}`, { method: 'DELETE' });
+      }
+      for (const [bank, layout] of Object.entries(newLayouts)) {
+        await fetch('/api/layouts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bank_name: bank, layout_data: layout })
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [bankLayouts]);
+
+  const handleUpdateHistory = useCallback(async (newHistory: DecisionEntry[]) => {
+    const deletedLogIds = history.filter(h => !newHistory.some(nh => nh.id === h.id)).map(h => h.id);
+    setHistory(newHistory);
+    try {
+      for (const id of deletedLogIds) {
+        await fetch(`/api/decision-history/${id}`, { method: 'DELETE' });
+      }
+      for (const entry of newHistory) {
+        const exists = history.some(h => h.id === entry.id);
+        if (!exists) {
+          await fetch('/api/decision-history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entry)
+          });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [history]);
+
+  const handleUpdateAgenda = useCallback(async (newAgenda: AgendaEntry[]) => {
+    const deletedAgendaIds = agenda.filter(a => !newAgenda.some(na => na.id === a.id)).map(a => a.id);
+    setAgenda(newAgenda);
+    try {
+      for (const id of deletedAgendaIds) {
+        await fetch(`/api/agenda/${id}`, { method: 'DELETE' });
+      }
+      for (const item of newAgenda) {
+        const exists = agenda.some(a => a.id === item.id);
+        if (exists) {
+          await fetch(`/api/agenda/${item.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: item.status })
+          });
+        } else {
+          await fetch('/api/agenda', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item)
+          });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [agenda]);
 
 
 
@@ -1074,15 +1145,15 @@ const App: React.FC = () => {
             <div className="p-8">
                <SettingsView 
                   proposals={proposals} 
-                  onUpdateProposals={setProposals} 
+                  onUpdateProposals={handleUpdateProposals} 
                   rules={rules} 
-                  onUpdateRules={setRules}
+                  onUpdateRules={handleUpdateRules}
                   users={users}
-                  onUpdateUsers={setUsers}
+                  onUpdateUsers={handleUpdateUsers}
                   bankLayouts={bankLayouts}
-                  onUpdateBankLayouts={setBankLayouts}
+                  onUpdateBankLayouts={handleUpdateBankLayouts}
                   history={history}
-                  onUpdateHistory={setHistory}
+                  onUpdateHistory={handleUpdateHistory}
                   addToast={addToast}
                   currentUser={currentUser}
                   isDarkMode={isDarkMode}
@@ -1115,7 +1186,7 @@ const App: React.FC = () => {
               onDeleteAllProposals={handleDeleteAllProposals}
             />
           ) : currentView === 'scheduled' ? (
-            <AgendaView agenda={agenda} onUpdateAgenda={setAgenda} addToast={addToast} currentUser={currentUser!} isDarkMode={isDarkMode} onAtenderAgenda={handleAtenderAgenda} />
+            <AgendaView agenda={agenda} onUpdateAgenda={handleUpdateAgenda} addToast={addToast} currentUser={currentUser!} isDarkMode={isDarkMode} onAtenderAgenda={handleAtenderAgenda} />
           ) : (
             <div className={`p-8 space-y-8 mx-auto w-full transition-all duration-300 ${isSidebarCollapsed ? 'max-w-none px-4 md:px-12' : 'max-w-screen-2xl'}`}>
                 <div className="header-riskflow">

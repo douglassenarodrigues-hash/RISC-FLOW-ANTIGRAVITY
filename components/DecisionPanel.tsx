@@ -289,9 +289,10 @@ export const DecisionPanel: React.FC<DecisionPanelProps> = ({ proposalId, status
                             'bg-red-600 text-white shadow-red-200 hover:bg-red-700'
                         }`}
                     >
-                        {decisionAction === 'APPROVE' ? '✅ Confirmar Aprovação' : 
-                         decisionAction === 'PENDING' ? '🔴 Salvar Pendência' : 
-                         decisionAction === 'CONTACT' ? '📞 Enviar para Contato' : '✖️ Confirmar Reprovação'}
+                        {decisionAction === 'APPROVE' ? <><span className="text-[12px] inline-block align-middle mr-1.5">✅</span>APROVAR</> : 
+                         decisionAction === 'PENDING' ? <><span className="text-[12px] inline-block align-middle mr-1.5">🔴</span>PENDENCIAR</> : 
+                         decisionAction === 'CONTACT' ? <><span className="text-[12px] inline-block align-middle mr-1.5">📞</span>ENVIAR PARA CONTATO</> : 
+                         <><span className="text-[12px] inline-block align-middle mr-1.5">❌</span>REPROVAR</>}
                     </button>
                     {!canExecute() && (
                         <p className="text-center mt-4 text-[10px] font-bold text-red-500 animate-pulse">

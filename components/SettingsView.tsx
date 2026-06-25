@@ -81,8 +81,8 @@ interface SettingsViewProps {
   ) => void;
   currentUser: UserAccount;
   isDarkMode?: boolean;
-  activeTab: "partner" | "covenant" | "access" | "governance" | "";
-  onTabChange: (tab: "partner" | "covenant" | "access" | "governance" | "") => void;
+  activeTab: "partner" | "covenant" | "access" | "governance" | "email" | "";
+  onTabChange: (tab: "partner" | "covenant" | "access" | "governance" | "email" | "") => void;
 }
 
 // Test comment
@@ -121,6 +121,64 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [partnerEditName, setPartnerEditName] = useState("");
   const [partnerEditCode, setPartnerEditCode] = useState("");
   const [partnerEditUsername, setPartnerEditUsername] = useState("");
+  const [partnerEditEmail, setPartnerEditEmail] = useState("");
+  const [partnerEditUsersRaw, setPartnerEditUsersRaw] = useState("");
+
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailSender, setEmailSender] = useState("");
+  const [emailSmtpHost, setEmailSmtpHost] = useState("");
+  const [emailSmtpPort, setEmailSmtpPort] = useState(587);
+  const [emailSmtpUser, setEmailSmtpUser] = useState("");
+  const [emailSmtpPass, setEmailSmtpPass] = useState("");
+  const [emailAutoSend, setEmailAutoSend] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "email") {
+      fetch("/api/email-template")
+        .then((res) => {
+          if (!res.ok) throw new Error("Erro ao carregar template");
+          return res.json();
+        })
+        .then((data) => {
+          setEmailSubject(data.assunto || "");
+          setEmailBody(data.corpo || "");
+          setEmailSender(data.remetente || "");
+          setEmailSmtpHost(data.smtp_host || "");
+          setEmailSmtpPort(data.smtp_port || 587);
+          setEmailSmtpUser(data.smtp_user || "");
+          setEmailSmtpPass(data.smtp_pass || "");
+          setEmailAutoSend(!!data.envio_automatico);
+        })
+        .catch((err) => {
+          console.error(err);
+          addToast("Não foi possível carregar o template de e-mail.", "error");
+        });
+    }
+  }, [activeTab]);
+
+  const handleSaveEmailTemplate = async () => {
+    try {
+      const response = await fetch("/api/email-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          assunto: emailSubject, 
+          corpo: emailBody,
+          remetente: emailSender,
+          smtp_host: emailSmtpHost,
+          smtp_port: emailSmtpPort,
+          smtp_user: emailSmtpUser,
+          smtp_pass: emailSmtpPass,
+          envio_automatico: emailAutoSend
+        }),
+      });
+      if (!response.ok) throw new Error("Falha ao salvar template");
+      addToast("Configuração de e-mail salva com sucesso!", "success", "📧");
+    } catch (error: any) {
+      addToast(`Erro ao salvar configuração: ${error.message}`, "error");
+    }
+  };
 
   useEffect(() => {
     if (selectedPartner) {
@@ -128,10 +186,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setPartnerEditName(partnerData?.name || "");
       setPartnerEditCode(selectedPartner);
       setPartnerEditUsername(partnerData?.username || "");
+      setPartnerEditEmail(partnerData?.email_parceiro || "");
+      setPartnerEditUsersRaw((partnerData?.usuarios_vinculados || []).join(";"));
     } else {
       setPartnerEditName("");
       setPartnerEditCode("");
       setPartnerEditUsername("");
+      setPartnerEditEmail("");
+      setPartnerEditUsersRaw("");
     }
   }, [selectedPartner, rules.partners]);
   const [mapping, setMapping] = useState({
@@ -164,11 +226,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     viewFraudPreventionChart: true,
   });
 
-  // Partner Manual Feed Form
   const [partnerForm, setPartnerForm] = useState({
     code: "",
     name: "",
     classification: "Ouro" as PartnerClassification,
+    email_parceiro: "",
+    usuarios_vinculados_raw: "",
   });
   const [viewingReportPartner, setViewingReportPartner] = useState<
     string | null
@@ -490,6 +553,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       status: "ACTING" as any,
     };
 
+    const linkedUsers = partnerForm.usuarios_vinculados_raw
+      ? partnerForm.usuarios_vinculados_raw.split(";").map(u => u.trim()).filter(Boolean)
+      : [];
+
     onUpdateRules({
       ...rules,
       partners: {
@@ -498,6 +565,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           ...current,
           name: partnerForm.name,
           classification: partnerForm.classification,
+          email_parceiro: partnerForm.email_parceiro.trim(),
+          usuarios_vinculados: linkedUsers,
         },
       },
     });
@@ -506,7 +575,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       "success",
       "✅",
     );
-    setPartnerForm({ code: "", name: "", classification: "Ouro" });
+    setPartnerForm({ code: "", name: "", classification: "Ouro", email_parceiro: "", usuarios_vinculados_raw: "" });
   };
 
   const handleSavePartnerIdentification = () => {
@@ -515,6 +584,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const newCode = partnerEditCode.toUpperCase().trim();
     const newName = partnerEditName.trim();
     const newUsername = partnerEditUsername.trim();
+    const newEmail = partnerEditEmail.trim();
+    const newLinkedUsers = partnerEditUsersRaw
+      ? partnerEditUsersRaw.split(";").map(u => u.trim()).filter(Boolean)
+      : [];
 
     if (!newCode) {
       addToast("O código do parceiro não pode ser vazio.", "error", "⚠️");
@@ -533,6 +606,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       status: "ACTING" as any,
     };
 
+    const updatedRule = {
+      ...currentRule,
+      name: newName,
+      username: newUsername,
+      email_parceiro: newEmail,
+      usuarios_vinculados: newLinkedUsers
+    };
+
     if (newCode !== oldCode) {
       if (rules.partners[newCode]) {
         addToast(`Erro: O código "${newCode}" já está sendo usado por outro parceiro.`, "error", "⚠️");
@@ -541,11 +622,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       const updatedPartners = { ...rules.partners };
       delete updatedPartners[oldCode];
-      updatedPartners[newCode] = {
-        ...currentRule,
-        name: newName,
-        username: newUsername,
-      };
+      updatedPartners[newCode] = updatedRule;
 
       onUpdateRules({
         ...rules,
@@ -557,11 +634,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         ...rules,
         partners: {
           ...rules.partners,
-          [oldCode]: {
-            ...currentRule,
-            name: newName,
-            username: newUsername,
-          },
+          [oldCode]: updatedRule,
         },
       });
     }
@@ -570,8 +643,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleDownloadPartnerTemplate = () => {
-    // Deliberate standard CSV template structure with user-requested columns
-    const csvContent = "CODIGO;NOME;REGUA;USUARIO;TETO\nAD01;Parceiro Exemplo Master;Master;usuario_exemplo;30000\nAD02;Parceiro Exemplo Ouro;Ouro;joao_silva;15000\nAD03;Parceiro Exemplo Prata;Prata;maria_oliveira;8000\nAD04;Parceiro Exemplo Bronze;Bronze;jose_souza;4000";
+    const csvContent = "codigo_parceiro;nome_parceiro;regua;email_parceiro;usuarios_vinculados;teto_operacional\n" +
+                       "AD01;Parceiro Exemplo Master;Master;master@email.com;\"USR001;USR002;USR003\";50000\n" +
+                       "AD02;Parceiro Exemplo Ouro;Ouro;ouro@email.com;\"USR004;USR005\";25000\n" +
+                       "AD03;Parceiro Exemplo Prata;Prata;prata@email.com;\"USR006\";10000\n" +
+                       "AD04;Parceiro Exemplo Bronze;Bronze;bronze@email.com;\"USR007\";4000";
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -593,78 +669,73 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       try {
         const buffer = event.target?.result as ArrayBuffer;
         const text = decodeArrayBuffer(buffer);
-        const lines = text.split(/\r?\n/);
-        if (lines.length < 2) throw new Error("CSV inválido.");
+        
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const data = results.data as any[];
+            const newPartners = { ...rules.partners };
+            let count = 0;
 
-        const headers = lines[0]
-          .split(/[;,]/)
-          .map((h) => h.trim().toUpperCase());
-        const codeIdx = headers.indexOf("CODIGO");
-        const nameIdx = headers.indexOf("NOME");
-        const reguaIdx = headers.indexOf("REGUA");
-        const userIdx = headers.indexOf("USUARIO");
-        const tetoIdx = headers.findIndex((h) => h === "TETO" || h === "LIMITE" || h === "TETO_OPERACIONAL");
+            data.forEach((row) => {
+              const code = (row.codigo_parceiro || row.CODIGO_PARCEIRO || row.codigo || row.CODIGO || "").toString().toUpperCase().trim();
+              const name = (row.nome_parceiro || row.NOME_PARCEIRO || row.nome || row.NOME || "").toString().trim();
+              const classification = (row.regua || row.REGUA || "Ouro").toString().trim() as PartnerClassification;
+              const email = (row.email_parceiro || row.EMAIL_PARCEIRO || row.email || row.EMAIL || "").toString().trim();
+              
+              const linkedUsersRaw = (row.usuarios_vinculados || row.USUARIOS_VINCULADOS || row.usuario || row.USUARIO || "").toString().trim();
+              const linkedUsers = linkedUsersRaw
+                ? linkedUsersRaw.split(";").map((u: string) => u.trim()).filter(Boolean)
+                : [];
 
-        if (codeIdx === -1 || nameIdx === -1) {
-          throw new Error("Colunas 'CODIGO' e 'NOME' são obrigatórias.");
-        }
+              if (code && name) {
+                const current = newPartners[code] || {
+                  selfie: true,
+                  doc: false,
+                  sla: "Normal" as any,
+                  limite: 4000.0,
+                  status: "ACTING" as any,
+                };
 
-        const newPartners = { ...rules.partners };
-        let count = 0;
-
-        lines.slice(1).forEach((line) => {
-          if (!line.trim()) return;
-          const cols = line.split(/[;,]/);
-          const code = cols[codeIdx]?.toUpperCase().trim();
-          const name = cols[nameIdx]?.trim();
-          const classification = (
-            reguaIdx !== -1 ? cols[reguaIdx]?.trim() : "Ouro"
-          ) as PartnerClassification;
-          const username = (userIdx !== -1 ? cols[userIdx]?.trim() : "") || "";
-
-          if (code && name) {
-            const current = newPartners[code] || {
-              selfie: true,
-              doc: false,
-              sla: "Normal" as any,
-              limite: 4000.0,
-              status: "ACTING" as any,
-            };
-
-            let parsedLimite = current.limite ?? 4000.0;
-            if (tetoIdx !== -1 && cols[tetoIdx]) {
-              const rawVal = cols[tetoIdx].trim();
-              if (rawVal) {
-                let normalized = rawVal;
-                if (normalized.includes(",") && normalized.includes(".")) {
-                  normalized = normalized.replace(/\./g, "").replace(",", ".");
-                } else if (normalized.includes(",")) {
-                  normalized = normalized.replace(",", ".");
+                const limitRaw = row.limite || row.LIMITE || row.teto || row.TETO || row.teto_operacional || row.TETO_OPERACIONAL || "";
+                let parsedLimite = current.limite ?? 4000.0;
+                if (limitRaw) {
+                  let normalized = limitRaw.toString().trim();
+                  if (normalized.includes(",") && normalized.includes(".")) {
+                    normalized = normalized.replace(/\./g, "").replace(",", ".");
+                  } else if (normalized.includes(",")) {
+                    normalized = normalized.replace(",", ".");
+                  }
+                  const val = parseFloat(normalized);
+                  if (!isNaN(val)) {
+                    parsedLimite = val;
+                  }
                 }
-                const val = parseFloat(normalized);
-                if (!isNaN(val)) {
-                  parsedLimite = val;
-                }
+
+                newPartners[code] = { 
+                  ...current, 
+                  name, 
+                  classification, 
+                  email_parceiro: email,
+                  usuarios_vinculados: linkedUsers,
+                  limite: parsedLimite 
+                };
+                count++;
               }
-            }
+            });
 
-            newPartners[code] = { 
-              ...current, 
-              name, 
-              classification, 
-              username, 
-              limite: parsedLimite 
-            };
-            count++;
+            onUpdateRules({ ...rules, partners: newPartners });
+            addToast(
+              `Régua atualizada! ${count} parceiros carregados.`,
+              "success",
+              "📂",
+            );
+          },
+          error: (err: any) => {
+            addToast(`Erro ao processar CSV: ${err.message}`, "error");
           }
         });
-
-        onUpdateRules({ ...rules, partners: newPartners });
-        addToast(
-          `Régua atualizada! ${count} parceiros carregados.`,
-          "success",
-          "📂",
-        );
       } catch (err: any) {
         addToast(`Erro na importação: ${err.message}`, "error");
       }
@@ -953,28 +1024,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        <div
-          className={`p-10 border-b ${isDarkMode ? "bg-slate-800/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}
-        >
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3 ml-1">
-            Selecione a área de gestão:
-          </label>
-          <select
-            className={`w-full max-w-md p-5 border rounded-2xl outline-none font-black shadow-sm transition-all cursor-pointer ${isDarkMode ? "bg-slate-900 border-slate-700 text-white focus:border-blue-500" : "bg-white border-slate-200 text-slate-800 focus:ring-4 focus:ring-blue-100"}`}
-            value={activeTab}
-            onChange={(e) => onTabChange(e.target.value as any)}
-          >
-            <option value="">Selecione uma opção...</option>
-            {currentUser.role === "Master" && (
-              <>
-                <option value="partner">🤝 Régua de Parceiros</option>
-                <option value="covenant">🏛️ Régua de Convênios</option>
-                <option value="access">👥 Acessos & Permissões</option>
-                <option value="governance">⚖️ Dicionário de Governança</option>
-              </>
-            )}
-          </select>
-        </div>
+
 
         <div className="p-10">
           {activeTab === "" && (
@@ -985,7 +1035,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <ShieldCheck size={48} />
               </div>
               <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
-                Selecione uma categoria acima para visualizar as ferramentas de
+                Selecione uma categoria no menu lateral para visualizar as ferramentas de
                 gestão.
               </p>
             </div>
@@ -1027,7 +1077,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div
-                  className={`grid grid-cols-1 md:grid-cols-4 gap-4 items-end p-6 rounded-2xl shadow-sm border ${isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-100"}`}
+                  className={`grid grid-cols-1 md:grid-cols-6 gap-4 items-end p-6 rounded-2xl shadow-sm border ${isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-100"}`}
                 >
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -1054,6 +1104,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       value={partnerForm.name}
                       onChange={(e) =>
                         setPartnerForm({ ...partnerForm, name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                      E-mail do Parceiro
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="Ex: email@parceiro.com"
+                      className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-800 border-slate-700 text-white focus:border-blue-500" : "bg-slate-50 border-slate-200 text-slate-900"}`}
+                      value={partnerForm.email_parceiro}
+                      onChange={(e) =>
+                        setPartnerForm({ ...partnerForm, email_parceiro: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                      Usuários Vinculados
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: USR001;USR002"
+                      className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-800 border-slate-700 text-white focus:border-blue-500" : "bg-slate-50 border-slate-200 text-slate-900"}`}
+                      value={partnerForm.usuarios_vinculados_raw}
+                      onChange={(e) =>
+                        setPartnerForm({ ...partnerForm, usuarios_vinculados_raw: e.target.value })
                       }
                     />
                   </div>
@@ -1132,6 +1210,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         </th>
                         <th className="px-6 py-3 text-center min-w-[90px]">SAÚDE</th>
                         <th className="px-6 py-3 text-center min-w-[90px]">RÉGUA</th>
+                        <th className="px-6 py-3 text-center min-w-[120px]">TETO OPERACIONAL</th>
                         <th className="px-6 py-3 text-center min-w-[100px]">STATUS</th>
                         <th className="px-6 py-3 text-center min-w-[130px]">
                           AÇÕES DE GESTÃO
@@ -1156,9 +1235,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               className={`px-6 py-4 text-center ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}
                             >
                               <div className="font-bold">{p.name || "N/I"}</div>
-                              {p.username && (
-                                <div className="text-[10px] font-mono text-blue-500 font-bold mt-1">
-                                  @{p.username}
+                              {p.email_parceiro && (
+                                <div className="text-[10px] text-slate-400 mt-1 font-semibold">
+                                  ✉️ {p.email_parceiro}
+                                </div>
+                              )}
+                              {p.usuarios_vinculados && p.usuarios_vinculados.length > 0 && (
+                                <div className="text-[9px] font-mono text-blue-500 font-bold mt-1 bg-blue-500/10 px-2 py-0.5 rounded-lg inline-block">
+                                  👥 {p.usuarios_vinculados.join(", ")}
+                                </div>
+                              )}
+                              {p.username && (!p.usuarios_vinculados || p.usuarios_vinculados.length === 0) && (
+                                <div className="text-[9px] font-mono text-blue-500 font-bold mt-1 bg-blue-500/10 px-2 py-0.5 rounded-lg inline-block">
+                                  👤 @{p.username}
                                 </div>
                               )}
                             </td>
@@ -1229,6 +1318,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               >
                                 {p.classification || "N/I"}
                               </span>
+                            </td>
+                            <td className={`px-6 py-4 text-center font-bold font-mono ${isDarkMode ? "text-blue-400" : "text-slate-700"}`}>
+                              {p.limite ? `R$ ${p.limite.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "R$ 4.000,00"}
                             </td>
                             <td className="px-6 py-4 text-center">
                               <span
@@ -1492,16 +1584,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             />
                           </div>
 
+                           <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">
+                              E-mail do Parceiro
+                            </label>
+                            <input
+                              type="email"
+                              value={partnerEditEmail}
+                              onChange={(e) => setPartnerEditEmail(e.target.value)}
+                              className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-800 border-slate-700 text-white focus:border-blue-500" : "bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-500"}`}
+                              placeholder="Ex: email@parceiro.com"
+                            />
+                          </div>
+
                           <div>
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">
-                              Usuário Associado
+                              Usuários Vinculados (Separados por ;)
                             </label>
                             <input
                               type="text"
-                              value={partnerEditUsername}
-                              onChange={(e) => setPartnerEditUsername(e.target.value)}
+                              value={partnerEditUsersRaw}
+                              onChange={(e) => setPartnerEditUsersRaw(e.target.value)}
                               className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-800 border-slate-700 text-white focus:border-blue-500" : "bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-500"}`}
-                              placeholder="Usuário (Ex: joao_silva)"
+                              placeholder="Ex: USR001;USR002"
                             />
                           </div>
 
@@ -1553,6 +1658,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 "doc",
                                 !(
                                   rules.partners[selectedPartner]?.doc ?? false
+                                ),
+                              )
+                            }
+                          />
+                          <ToggleItem
+                            disabled={!canEditSecurity}
+                            label="Exigir Contato Telefônico"
+                            active={
+                              rules.partners[selectedPartner]?.contato_telefonico ?? false
+                            }
+                            onToggle={() =>
+                              updatePartnerRule(
+                                selectedPartner,
+                                "contato_telefonico",
+                                !(
+                                  rules.partners[selectedPartner]?.contato_telefonico ?? false
                                 ),
                               )
                             }
@@ -1629,6 +1750,210 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   ))}
                 </div>
               </section>
+            </div>
+          )}
+
+          {activeTab === "email" && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <div className={`p-8 rounded-[2rem] border ${isDarkMode ? "bg-slate-800/30 border-slate-800" : "bg-slate-50 border-slate-200"} space-y-6`}>
+                <div className="flex items-center gap-4">
+                  <div className="p-4 bg-indigo-500/10 text-indigo-500 rounded-2xl">
+                    <ShieldCheck size={28} />
+                  </div>
+                  <div>
+                    <h3 className={`text-xl font-black uppercase tracking-tight ${isDarkMode ? "text-white" : "text-slate-800"}`}>
+                      📧 Configuração do Layout do E-mail de Pendências
+                    </h3>
+                    <p className="text-xs text-slate-400 font-medium">
+                      Configure o assunto e o corpo do e-mail de pendências enviado para os parceiros.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                  {/* Form fields */}
+                  <div className="lg:col-span-8 space-y-6">
+                    {/* Automated sending toggle */}
+                    <div className={`p-6 rounded-2xl border ${isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-100"} flex items-center justify-between`}>
+                      <div>
+                        <h4 className={`text-xs font-black uppercase tracking-tight ${isDarkMode ? "text-white" : "text-slate-800"}`}>
+                          🤖 Envio Automático de Pendências
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                          Quando ativado, o sistema enviará automaticamente um e-mail ao parceiro correspondente assim que uma proposta for colocada em status "Pendente" na mesa.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setEmailAutoSend(!emailAutoSend)}
+                        className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${emailAutoSend ? "bg-emerald-600" : "bg-slate-450 dark:bg-slate-700"}`}
+                      >
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${emailAutoSend ? "left-6.5" : "left-0.5"}`} />
+                      </button>
+                    </div>
+
+                    {/* SMTP Configuration */}
+                    <div className={`p-8 rounded-[2rem] border ${isDarkMode ? "bg-slate-900/20 border-slate-800" : "bg-slate-50 border-slate-200"} space-y-4`}>
+                      <h4 className={`text-xs font-black uppercase tracking-tight ${isDarkMode ? "text-indigo-400" : "text-indigo-600"}`}>
+                        ⚙️ Configurações do Servidor de Envio (SMTP)
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        Forneça as credenciais de SMTP para que o sistema consiga realizar os disparos automáticos.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                            Nome do Remetente
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Portal Riskflow"
+                            value={emailSender}
+                            onChange={(e) => setEmailSender(e.target.value)}
+                            className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-900 border-slate-700 text-white focus:border-blue-500" : "bg-white border-slate-200 text-slate-900 focus:border-blue-500"}`}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                            Host SMTP
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ex: smtp.hostinger.com"
+                            value={emailSmtpHost}
+                            onChange={(e) => setEmailSmtpHost(e.target.value)}
+                            className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-900 border-slate-700 text-white focus:border-blue-500" : "bg-white border-slate-200 text-slate-900 focus:border-blue-500"}`}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                            Porta SMTP
+                          </label>
+                          <input
+                            type="number"
+                            placeholder="Ex: 587"
+                            value={emailSmtpPort || ""}
+                            onChange={(e) => setEmailSmtpPort(parseInt(e.target.value, 10))}
+                            className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-900 border-slate-700 text-white focus:border-blue-500" : "bg-white border-slate-200 text-slate-900 focus:border-blue-500"}`}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                            Usuário SMTP
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ex: notificacoes@riskflow.com"
+                            value={emailSmtpUser}
+                            onChange={(e) => setEmailSmtpUser(e.target.value)}
+                            className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-900 border-slate-700 text-white focus:border-blue-500" : "bg-white border-slate-200 text-slate-900 focus:border-blue-500"}`}
+                          />
+                        </div>
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                            Senha SMTP / Chave de Aplicativo
+                          </label>
+                          <input
+                            type="password"
+                            placeholder="••••••••••••"
+                            value={emailSmtpPass}
+                            onChange={(e) => setEmailSmtpPass(e.target.value)}
+                            className={`w-full p-3 border rounded-xl text-xs font-bold outline-none transition-all ${isDarkMode ? "bg-slate-900 border-slate-700 text-white focus:border-blue-500" : "bg-white border-slate-200 text-slate-900 focus:border-blue-500"}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">
+                        Assunto do E-mail
+                      </label>
+                      <input
+                        type="text"
+                        value={emailSubject}
+                        onChange={(e) => setEmailSubject(e.target.value)}
+                        className={`w-full p-4 border rounded-2xl outline-none text-sm font-bold transition-all ${isDarkMode ? "bg-slate-900 border-slate-700 text-white focus:border-blue-500" : "bg-white border-slate-200 text-slate-800 focus:ring-4 focus:ring-blue-100"}`}
+                        placeholder="Ex: Pendência Identificada - Parceiro {codigo_parceiro} - Proposta {numero_proposta}"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">
+                        Corpo do E-mail
+                      </label>
+                      <textarea
+                        value={emailBody}
+                        onChange={(e) => setEmailBody(e.target.value)}
+                        rows={12}
+                        className={`w-full p-4 border rounded-2xl outline-none text-sm font-semibold transition-all resize-y ${isDarkMode ? "bg-slate-900 border-slate-700 text-white focus:border-blue-500" : "bg-white border-slate-200 text-slate-800 focus:ring-4 focus:ring-blue-100"}`}
+                        placeholder="Escreva a mensagem do e-mail..."
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleSaveEmailTemplate}
+                      className="px-8 py-4 bg-blue-600 hover:bg-blue-550 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center gap-2 cursor-pointer"
+                    >
+                      <CheckCircle2 size={16} /> Salvar Configurações de E-mail
+                    </button>
+                  </div>
+
+                  {/* Sidebar instructions */}
+                  <div className="lg:col-span-4 space-y-6">
+                    <div className={`p-6 rounded-2xl border ${isDarkMode ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-100"} space-y-4`}>
+                      <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400">
+                        🏷️ Tags Dinâmicas Disponíveis
+                      </h4>
+                      <p className="text-[11px] text-slate-400 leading-normal">
+                        Você pode usar as seguintes tags dinâmicas no assunto ou no corpo do e-mail. Elas serão substituídas automaticamente pelos dados reais da operação:
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-1 rounded-lg self-start">
+                            {`{codigo_parceiro}`}
+                          </span>
+                          <span className="text-[10px] text-slate-400 pl-1 font-medium">Código único de identificação do parceiro</span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-1 rounded-lg self-start">
+                            {`{numero_proposta}`}
+                          </span>
+                          <span className="text-[10px] text-slate-400 pl-1 font-medium">Número de proposta/ADE do cliente</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-1 rounded-lg self-start">
+                            {`{cpf_cliente}`}
+                          </span>
+                          <span className="text-[10px] text-slate-400 pl-1 font-medium">CPF completo do cliente cadastrado</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-1 rounded-lg self-start">
+                            {`{nome_cliente}`}
+                          </span>
+                          <span className="text-[10px] text-slate-400 pl-1 font-medium">Nome completo do cliente</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-1 rounded-lg self-start">
+                            {`{valor_operacao}`}
+                          </span>
+                          <span className="text-[10px] text-slate-400 pl-1 font-medium">Valor da operação/financiamento</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-1 rounded-lg self-start">
+                            {`{motivo_pendencia}`}
+                          </span>
+                          <span className="text-[10px] text-slate-400 pl-1 font-medium">Motivo detalhado da pendência</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

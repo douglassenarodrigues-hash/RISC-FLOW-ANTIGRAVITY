@@ -622,6 +622,81 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
   const [fraudSubMotive, setFraudSubMotive] = useState('');
 
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
+
+  const renderInformacoesGerais = () => (
+    <div className={`p-6 rounded-2xl border shadow-sm ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
+      <h4 className={`text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+        <Info size={14} className="text-blue-500" />
+        🔍 Informações Gerais
+      </h4>
+      <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+        <DataField label="Valor da Parcela" value={maskValue(proposal.valor)} isDarkMode={isDarkMode} />
+        <DataField label="Valor Financiado" value={maskValue(proposal.valorFinanciado)} isDarkMode={isDarkMode} />
+        <DataField label="CPF" value={maskCpf(proposal.cpf)} isDarkMode={isDarkMode} />
+        <DataField label="Importado por" value={proposal.importedBy || 'SISTEMA'} isDarkMode={isDarkMode} />
+        <DataField label="Convênio" value={proposal.convenio} isDarkMode={isDarkMode} />
+        <DataField label="Produto" value={proposal.produto} isDarkMode={isDarkMode} />
+        <DataField label="Digitador" value={proposal.corretor || 'N/I'} isDarkMode={isDarkMode} />
+        <DataField label="Parceiro" value={partnerName} isDarkMode={isDarkMode} />
+        
+        {/* SLA Restante */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase font-black tracking-widest text-[#64748b]">SLA Restante (3h)</span>
+          <div className="flex items-center gap-1.5">
+            <span className={`text-sm font-black font-mono ${
+              timeState.isPaused 
+                ? 'text-yellow-500' 
+                : timeState.slaMs <= 0 
+                  ? 'text-red-500 animate-pulse font-black' 
+                  : timeState.slaMs < 1800000 
+                    ? 'text-orange-500 font-extrabold' 
+                    : isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
+            }`}>
+              {formatDuration(timeState.slaMs)}
+            </span>
+            {timeState.isPaused ? (
+              <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
+                PAUSADO
+              </span>
+            ) : (
+              <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 animate-pulse">
+                ATIVO
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Tempo no Sistema */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase font-black tracking-widest text-[#64748b]">Tempo no Sistema</span>
+          <span className={`text-sm font-black font-mono ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+            {formatAge(timeState.ageMs)}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-6 pt-6 border-t border-slate-700/50 flex flex-col sm:flex-row gap-4">
+        <button
+          onClick={handleGeneratePDF}
+          className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25"
+        >
+          <FileText size={14} /> 📥 Gerar Laudo Técnico PDF
+        </button>
+        {proposal.lockedBy && (
+          <button
+            onClick={() => onRelease(proposal.id)}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${
+              isDarkMode 
+              ? 'bg-red-950/40 border border-red-900/50 text-red-400 hover:bg-red-900 hover:text-white shadow-red-500/5' 
+              : 'bg-red-50 border border-red-200 text-red-650 hover:bg-red-650 hover:text-white shadow-red-500/10'
+            }`}
+          >
+            <Unlock size={14} /> Soltar Proposta
+          </button>
+        )}
+      </div>
+    </div>
+  );
   const [aiAnalysisResult, setAiAnalysisResult] = useState<{
     isValidDocument: boolean;
     isIlegivel: boolean;
@@ -1124,12 +1199,12 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
         >
         <div className="info-bloco">
           <span className="info-label">ADE</span>
-          <span className="info-valor valor-destaque font-mono">{proposal.ade}</span>
+          <span className={`info-valor font-mono ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{proposal.ade}</span>
         </div>
 
         <div className="info-bloco">
           <span className="info-label">CPF</span>
-          <span className="info-valor valor-destaque font-mono">{maskCpf(proposal.cpf)}</span>
+          <span className={`info-valor font-mono ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{maskCpf(proposal.cpf)}</span>
         </div>
         
         <div className="info-bloco">
@@ -1149,17 +1224,17 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
 
         <div className="info-bloco">
           <span className="info-label">Valor Financiado</span>
-          <span className="info-valor valor-dinheiro">{maskValue(proposal.valorFinanciado)}</span>
+          <span className={`info-valor ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{maskValue(proposal.valorFinanciado)}</span>
         </div>
 
         <div className="info-bloco">
           <span className="info-label">Produto</span>
-          <span className={`info-valor text-[12px] ${isDarkMode ? 'text-white' : 'text-slate-700'}`}>{proposal.produto}</span>
+          <span className={`info-valor ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{proposal.produto}</span>
         </div>
 
         <div className="info-bloco">
           <span className="info-label">Convênio</span>
-          <span className="text-[#94a3b8] text-[10px] uppercase font-bold">{proposal.convenio}</span>
+          <span className={`info-valor uppercase ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{proposal.convenio}</span>
         </div>
 
         <div className="info-bloco items-center">
@@ -1195,45 +1270,48 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
 
         <div className="info-bloco">
           <span className="info-label">Tempo em Fila</span>
-          <span className={`info-valor text-[11px] font-bold font-mono ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+          <span className={`info-valor font-mono ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
             {formatAge(timeState.ageMs)}
           </span>
         </div>
 
-        <div className="text-right flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-          {proposal.lockedBy ? (
-            <>
+        <div className="info-bloco items-center justify-center min-w-[100px]" onClick={(e) => e.stopPropagation()}>
+          <span className="info-label w-full text-center">Mesa</span>
+          <div className="flex items-center justify-center gap-1.5 mt-1">
+            {proposal.lockedBy ? (
+              <>
+                <div 
+                  className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 ${
+                    isLockedByMe ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'
+                  }`}
+                >
+                  {isLockedByMe ? <Unlock size={10} /> : <Lock size={10} />}
+                  {isLockedByMe ? 'VOCÊ' : proposal.lockedBy}
+                </div>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRelease(proposal.id);
+                  }}
+                  className={`p-1 px-2 rounded-full border text-[8px] uppercase font-black tracking-wider flex items-center gap-0.5 transition-all shrink-0 ${
+                    isDarkMode 
+                    ? 'bg-red-950/40 border-red-900/50 text-red-400 hover:bg-red-900 hover:text-white' 
+                    : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-600 hover:text-white'
+                  }`}
+                  title="Soltar Análise (Devolver para Fila)"
+                >
+                  <Unlock size={8} />
+                  <span>Soltar</span>
+                </button>
+              </>
+            ) : (
               <div 
-                className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                  isLockedByMe ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'
-                }`}
+                className="bg-[#f1f5f9] text-slate-900 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0"
               >
-                {isLockedByMe ? <Unlock size={12} /> : <Lock size={12} />}
-                {isLockedByMe ? 'VOCÊ' : proposal.lockedBy}
+                <Unlock size={10} /> LIVRE
               </div>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRelease(proposal.id);
-                }}
-                className={`p-1.5 px-2.5 rounded-full border text-[9px] uppercase font-black tracking-wider flex items-center gap-1 transition-all ${
-                  isDarkMode 
-                  ? 'bg-red-950/40 border-red-900/50 text-red-400 hover:bg-red-900 hover:text-white' 
-                  : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-600 hover:text-white'
-                }`}
-                title="Soltar Análise (Devolver para Fila)"
-              >
-                <Unlock size={10} />
-                <span>Soltar</span>
-              </button>
-            </>
-          ) : (
-            <div 
-              className="bg-[#f1f5f9] text-slate-900 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5"
-            >
-              <Unlock size={12} /> LIVRE
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -1305,6 +1383,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column (Span 2): Área de Perícia e Arquivos */}
             <div className="lg:col-span-2 space-y-6">
+              {isLockedByMe && renderInformacoesGerais()}
               
               <div className="flex flex-col space-y-5">
                 <h3 className={`text-sm font-black uppercase tracking-widest flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
@@ -1735,79 +1814,17 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                   )}
                 </div>
 
-              </div>
-
-              {/* Informações Gerais */}
-              <div className={`p-6 rounded-2xl border shadow-sm ${isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'}`}>
-                <h4 className={`text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                  <Info size={14} className="text-blue-500" />
-                  🔍 Informações Gerais
-                </h4>
-                <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                  <DataField label="Valor da Parcela" value={maskValue(proposal.valor)} isDarkMode={isDarkMode} />
-                  <DataField label="Valor Financiado" value={maskValue(proposal.valorFinanciado)} isDarkMode={isDarkMode} />
-                  <DataField label="CPF" value={maskCpf(proposal.cpf)} isDarkMode={isDarkMode} />
-                  <DataField label="Importado por" value={proposal.importedBy || 'SISTEMA'} isDarkMode={isDarkMode} />
-                  <DataField label="Convênio" value={proposal.convenio} isDarkMode={isDarkMode} />
-                  <DataField label="Produto" value={proposal.produto} isDarkMode={isDarkMode} />
-                  <DataField label="Digitador" value={proposal.corretor || 'N/I'} isDarkMode={isDarkMode} />
-                  <DataField label="Parceiro" value={partnerName} isDarkMode={isDarkMode} />
-                  
-                  {/* SLA Restante */}
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] uppercase font-black tracking-widest text-[#64748b]">SLA Restante (3h)</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-sm font-black font-mono ${
-                        timeState.isPaused 
-                          ? 'text-yellow-500' 
-                          : timeState.slaMs <= 0 
-                            ? 'text-red-500 animate-pulse font-black' 
-                            : timeState.slaMs < 1800000 
-                              ? 'text-orange-500 font-extrabold' 
-                              : isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-                      }`}>
-                        {formatDuration(timeState.slaMs)}
-                      </span>
-                      {timeState.isPaused ? (
-                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                          PAUSADO
-                        </span>
-                      ) : (
-                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 animate-pulse">
-                          ATIVO
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Tempo no Sistema */}
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] uppercase font-black tracking-widest text-[#64748b]">Tempo no Sistema</span>
-                    <span className={`text-sm font-black font-mono ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                      {formatAge(timeState.ageMs)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-6 border-t border-slate-700/50 flex flex-col sm:flex-row gap-4">
+                <div className="flex justify-end mt-4">
                   <button
-                    onClick={handleGeneratePDF}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25"
-                  >
-                    <FileText size={14} /> 📥 Gerar Laudo Técnico PDF
-                  </button>
-                  {proposal.lockedBy && (
-                    <button
-                      onClick={() => onRelease(proposal.id)}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${
-                        isDarkMode 
-                        ? 'bg-red-950/40 border border-red-900/50 text-red-400 hover:bg-red-900 hover:text-white shadow-red-500/5' 
+                    onClick={() => onRelease(proposal.id)}
+                    className={`px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                      isDarkMode 
+                        ? 'bg-red-900/20 border border-red-800 text-red-400 hover:bg-red-900/40' 
                         : 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-650 hover:text-white shadow-red-500/10'
-                      }`}
-                    >
-                      <Unlock size={14} /> Soltar Proposta
-                    </button>
-                  )}
+                    }`}
+                  >
+                    <Unlock size={14} /> Soltar Proposta
+                  </button>
                 </div>
               </div>
 
@@ -2181,7 +2198,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                               disabled={isApproveDisabled}
                               className="flex items-center justify-center gap-2 py-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20 text-center"
                             >
-                              <CheckCircle2 size={13} className="shrink-0" />
+                              <span className="text-[12px] inline-block align-middle mr-1.5">✅</span>
                               <span className="text-center">APROVAR</span>
                             </button>
                             <button 
@@ -2202,7 +2219,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                               disabled={isReprovarDisabled}
                               className="flex items-center justify-center gap-2 py-4 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 transition-all disabled:opacity-50 shadow-lg shadow-red-500/20 text-center"
                             >
-                              <AlertTriangle size={13} className="shrink-0" />
+                              <span className="text-[12px] inline-block align-middle mr-1.5">❌</span>
                               <span className="text-center">REPROVAR</span>
                             </button>
                             <button 
@@ -2215,7 +2232,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                               disabled={isPendênciaDisabled}
                               className="flex items-center justify-center gap-2 py-4 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 transition-all disabled:opacity-50 shadow-lg shadow-amber-500/20 text-center"
                             >
-                              <Clock size={13} className="shrink-0" />
+                              <span className="text-[12px] inline-block align-middle mr-1.5">🔴</span>
                               <span className="text-center">PENDENCIAR</span>
                             </button>
                             <button 
@@ -2228,8 +2245,8 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                               disabled={false}
                               className="flex items-center justify-center gap-2 py-4 bg-cyan-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-cyan-500 transition-all disabled:opacity-50 shadow-lg shadow-cyan-500/20 text-center"
                             >
-                              <PhoneCall size={13} className="shrink-0" />
-                              <span className="text-center">Enviar para Contato</span>
+                              <span className="text-[12px] inline-block align-middle mr-1.5">📞</span>
+                              <span className="text-center">ENVIAR PARA CONTATO</span>
                             </button>
                             <button 
                               onClick={() => onQuickSchedule(proposal)}

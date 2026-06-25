@@ -1,0 +1,89 @@
+{
+  "users": [
+    {
+      "id": "master-1",
+      "username": "administrador",
+      "password": "123",
+      "role": "Master",
+      "actingAreas": "[\"TODAS\"]",
+      "permissions": "{\"viewFullCpf\":true,\"viewValues\":true,\"editRules\":true,\"deleteProposals\":true,\"fullAnalyticalControl\":false,\"viewDailyPerfSummary\":true,\"viewActivitySummaryGov\":true,\"viewProductionReportPeriod\":true,\"viewPerformanceChartsPeriod\":true,\"viewQtyActionsDistChart\":false,\"viewOperationalReportCsv\":true,\"viewActionsAnalystBank\":true,\"viewAuditGuideSidebar\":true,\"editPartnerLimit\":true,\"editPartnerSla\":true,\"editPartnerBehaviorRegua\":true,\"editPartnerSecurityVerify\":true,\"viewFraudPreventionChart\":true}",
+      "active": 1,
+      "status": "Offline"
+    },
+    {
+      "id": "analista-1",
+      "username": "Douglas Sena",
+      "password": "123",
+      "role": "Analista",
+      "actingAreas": "[\"TODAS\"]",
+      "permissions": "{\"viewFullCpf\":false,\"viewValues\":true,\"editRules\":false,\"deleteProposals\":true,\"viewFraudPreventionChart\":false}",
+      "active": 1,
+      "status": "Offline"
+    }
+  ],
+  "proposals": [],
+  "decision_history": [],
+  "agenda": [],
+  "rules": [
+    {
+      "id": 1,
+      "rule_key": "covenants",
+      "rule_data": "{\"INSS\":{\"documents\":[\"RG/CNH\"],\"teto\":4000}}"
+    }
+  ],
+  "partners": [
+    {
+      "codigo_parceiro": "SISTEMA",
+      "nome_parceiro": "Direto Loja",
+      "email_parceiro": null,
+      "regua": "Master",
+      "selfie": 1,
+      "doc": 0,
+      "sla": "Urgente",
+      "limite": 50000,
+      "status": "ACTING",
+      "score": 100,
+      "driveUrl": null,
+      "contato_telefonico": 0
+    },
+    {
+      "codigo_parceiro": "AD01",
+      "nome_parceiro": "Parceiro Centro",
+      "email_parceiro": null,
+      "regua": "Ouro",
+      "selfie": 1,
+      "doc": 0,
+      "sla": "Normal",
+      "limite": 25000,
+      "status": "ACTING",
+      "score": 100,
+      "driveUrl": null,
+      "contato_telefonico": 0
+    }
+  ],
+  "parceiro_usuarios": [],
+  "templates_email": [
+    {
+      "id": 1,
+      "assunto": "Pendência Identificada - Parceiro {codigo_parceiro} - Proposta {numero_proposta}",
+      "corpo": "Olá, parceiro (Código: {codigo_parceiro}).\n\nIdentificamos uma pendência na operação do cliente {nome_cliente} (CPF: {cpf_cliente}).\n\nDetalhes da Operação:\n- Proposta/ADE: {numero_proposta}\n- Valor: R$ {valor_operacao}\n- Motivo da Pendência: {motivo_pendencia}\n\nPor favor, verifique a documentação e nos envie o retorno respondendo a este e-mail para darmos continuidade à operação.\n\nAtenciosamente,\nEquipe de Operações",
+      "remetente": null,
+      "smtp_host": null,
+      "smtp_port": 587,
+      "smtp_user": null,
+      "smtp_pass": null,
+      "envio_automatico": 0
+    }
+  ],
+  "bank_layouts": [
+    {
+      "bank_name": "ITAÚ",
+      "layout_data": "{\"bankName\":\"ITAÚ\",\"ade\":\"ADE\",\"cpf\":\"CPF\",\"cliente\":\"Nome\",\"atividade\":\"Situação\",\"fase\":\"Consistência\",\"valor\":\"Valor Solic.\",\"valorFinanciado\":\"Valor Solic.\",\"convenio\":\"Convênio\",\"corretor\":\"Corretor\",\"produto\":\"Produto\",\"filterValue\":\"\",\"sep\":\";\"}"
+    },
+    {
+      "bank_name": "PAN",
+      "layout_data": "{\"bankName\":\"PAN\",\"ade\":\"ADE\",\"cpf\":\"CPF\",\"cliente\":\"Nome\",\"atividade\":\"Situação\",\"fase\":\"Fase\",\"valor\":\"Valor\",\"valorFinanciado\":\"Valor\",\"convenio\":\"Convênio\",\"corretor\":\"Corretor\",\"produto\":\"Produto\",\"filterValue\":\"\",\"sep\":\";\"}"
+    }
+  ],
+  "imported_bases": []
+}

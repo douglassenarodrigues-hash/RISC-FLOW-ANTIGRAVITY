@@ -21,6 +21,11 @@ import {
   Moon,
   Sun,
   Menu,
+  Handshake,
+  Landmark,
+  User,
+  Scale,
+  Mail,
 } from "lucide-react";
 import { Proposal, RiskStatus, UserAccount } from "../types";
 import { TimeFilter } from "../App";
@@ -42,7 +47,7 @@ export type ViewType =
   | "master_covenants"
   | "master_access"
   | "base_management";
-export type SettingsTab = "partner" | "covenant" | "access" | "governance" | "";
+export type SettingsTab = "partner" | "covenant" | "access" | "governance" | "email" | "";
 
 interface SidebarProps {
   currentView: ViewType;
@@ -376,7 +381,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {isGovernanceExpanded && !isCollapsed && (
               <nav className="mt-2 space-y-1 px-2 animate-in slide-in-from-top-1 duration-200">
                 <NavItem
-                  icon={<span>🤝</span>}
+                  icon={<Handshake size={18} />}
                   label="Parceiros"
                   active={
                     currentView === "settings" && settingsTab === "partner"
@@ -388,7 +393,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                 />
                 <NavItem
-                  icon={<span>🏦</span>}
+                  icon={<Landmark size={18} />}
                   label="Convênios"
                   active={
                     currentView === "settings" && settingsTab === "covenant"
@@ -400,7 +405,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                 />
                 <NavItem
-                  icon={<span>👤</span>}
+                  icon={<User size={18} />}
                   label="Usuários"
                   active={
                     currentView === "settings" && settingsTab === "access"
@@ -412,7 +417,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                 />
                 <NavItem
-                  icon={<span>⚖️</span>}
+                  icon={<Scale size={18} />}
                   label="Regras de Risco"
                   active={
                     currentView === "settings" && settingsTab === "governance"
@@ -421,6 +426,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => {
                     onViewChange("settings");
                     onSettingsTabChange("governance");
+                  }}
+                />
+                <NavItem
+                  icon={<Mail size={18} />}
+                  label="E-mail de Pendências"
+                  active={
+                    currentView === "settings" && settingsTab === "email"
+                  }
+                  isCollapsed={isCollapsed}
+                  onClick={() => {
+                    onViewChange("settings");
+                    onSettingsTabChange("email");
                   }}
                 />
               </nav>

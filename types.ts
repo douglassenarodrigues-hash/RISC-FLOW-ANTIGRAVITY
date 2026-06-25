@@ -109,6 +109,9 @@ export interface PartnerRule {
   score?: number;
   driveUrl?: string;
   username?: string;
+  email_parceiro?: string;
+  usuarios_vinculados?: string[];
+  contato_telefonico: boolean;
 }
 
 export interface CovenantRule {

@@ -25,7 +25,7 @@
 
 @layer components {
   .card-esteira-global {
-    @apply bg-[#0b1120] rounded-xl p-[18px_25px] mb-2.5 w-full max-w-[1300px] mx-auto border border-[#1e293b] grid grid-cols-[1fr_1.2fr_2fr_1fr_0.7fr_0.8fr_0.8fr_0.8fr_0.7fr] items-center gap-[20px] transition-all duration-300 hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5;
+    @apply bg-[#0b1120] rounded-xl p-[18px_25px] mb-2.5 w-full max-w-[1300px] mx-auto border border-[#1e293b] grid grid-cols-[1fr_1.2fr_2.2fr_1fr_0.7fr_0.8fr_0.7fr_0.8fr_0.8fr_1fr_1.1fr] items-center gap-[20px] transition-all duration-300 hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5;
   }
 
   .info-bloco {
