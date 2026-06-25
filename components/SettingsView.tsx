@@ -1123,7 +1123,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                      Usuários Vinculados
+                      Usuários do Banco Vinculados
                     </label>
                     <input
                       type="text"
@@ -1599,7 +1599,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                           <div>
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">
-                              Usuários Vinculados (Separados por ;)
+                              Usuários do Banco Vinculados (Separados por ;)
                             </label>
                             <input
                               type="text"
