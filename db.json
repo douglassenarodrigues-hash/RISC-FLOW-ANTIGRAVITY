@@ -21,8 +21,155 @@
       "status": "Offline"
     }
   ],
-  "proposals": [],
-  "decision_history": [],
+  "proposals": [
+    {
+      "id": "prop-830922785-0-1782409893612",
+      "ade": "830922785",
+      "nomeCliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "convenio": "CREDITO DO TRBALHADOR",
+      "produto": "MRG - PUBLICO DIG",
+      "corretor": "DCE-NOVAPROMOTORA4568",
+      "valor": 100,
+      "valorFinanciado": 50000,
+      "cpf": "17475545709",
+      "sla": "03:00:00",
+      "obs": "Acima do limite do parceiro",
+      "status": "PENDING",
+      "originalStatus": "AND",
+      "faseAtuacao": "CHECKLIST PROMOTORA",
+      "dataSistema": "2026-06-25",
+      "documentacao": "Pendente",
+      "lockedBy": "administrador",
+      "createdAt": 1782409895115,
+      "lastUpdatedStatusAt": 1782409895115,
+      "slaRemainingMs": 10800000,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    }
+  ],
+  "decision_history": [
+    {
+      "id": "auto-830922785-1782409895113-0.27524933630283455",
+      "timestamp": "25/06/2026, 14:51:35",
+      "ade": "830922785",
+      "cliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "decisao": "IMPORTAÇÃO",
+      "motivo": "CLASSIFICAÇÃO: Acima do limite do parceiro",
+      "analista": "administrador",
+      "acao": "IMPORTAÇÃO",
+      "aiAnalysisResult": null,
+      "contactAttachment": null,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    },
+    {
+      "id": "log-1782410205740-y51667j1x",
+      "timestamp": "25/06/2026, 14:56:45",
+      "ade": "830922785",
+      "cliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "decisao": "ASSUMIU",
+      "motivo": "Começou a analisar",
+      "analista": "administrador",
+      "acao": "ASSUMIU",
+      "aiAnalysisResult": null,
+      "contactAttachment": null,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    },
+    {
+      "id": "log-1782410283725-258vxow0r",
+      "timestamp": "25/06/2026, 14:58:03",
+      "ade": "830922785",
+      "cliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "decisao": "LIBEROU",
+      "motivo": "Liberada por analista",
+      "analista": "administrador",
+      "acao": "LIBEROU",
+      "aiAnalysisResult": null,
+      "contactAttachment": null,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    },
+    {
+      "id": "log-1782412908082-ne86a6eak",
+      "timestamp": "25/06/2026, 15:41:48",
+      "ade": "830922785",
+      "cliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "decisao": "ASSUMIU",
+      "motivo": "Começou a analisar",
+      "analista": "administrador",
+      "acao": "ASSUMIU",
+      "aiAnalysisResult": null,
+      "contactAttachment": null,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    },
+    {
+      "id": "log-1782412924324-t724cp3qq",
+      "timestamp": "25/06/2026, 15:42:04",
+      "ade": "830922785",
+      "cliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "decisao": "LIBEROU",
+      "motivo": "Liberada por analista",
+      "analista": "administrador",
+      "acao": "LIBEROU",
+      "aiAnalysisResult": null,
+      "contactAttachment": null,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    },
+    {
+      "id": "log-1782418943585-lagru0fqa",
+      "timestamp": "25/06/2026, 17:22:23",
+      "ade": "830922785",
+      "cliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "decisao": "ASSUMIU",
+      "motivo": "Começou a analisar",
+      "analista": "administrador",
+      "acao": "ASSUMIU",
+      "aiAnalysisResult": null,
+      "contactAttachment": null,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    },
+    {
+      "id": "log-1782419613584-39mub5iue",
+      "timestamp": "25/06/2026, 17:33:33",
+      "ade": "830922785",
+      "cliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "decisao": "LIBEROU",
+      "motivo": "Liberada por analista",
+      "analista": "administrador",
+      "acao": "LIBEROU",
+      "aiAnalysisResult": null,
+      "contactAttachment": null,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    },
+    {
+      "id": "log-1782419621933-ou3u5nsns",
+      "timestamp": "25/06/2026, 17:33:41",
+      "ade": "830922785",
+      "cliente": "DOUGLAS SENA RODRIGUES",
+      "banco": "NEW",
+      "decisao": "ASSUMIU",
+      "motivo": "Começou a analisar",
+      "analista": "administrador",
+      "acao": "ASSUMIU",
+      "aiAnalysisResult": null,
+      "contactAttachment": null,
+      "fraudCategory": null,
+      "fraudSubMotive": null
+    }
+  ],
   "agenda": [],
   "rules": [
     {
@@ -85,5 +232,17 @@
       "layout_data": "{\"bankName\":\"PAN\",\"ade\":\"ADE\",\"cpf\":\"CPF\",\"cliente\":\"Nome\",\"atividade\":\"Situação\",\"fase\":\"Fase\",\"valor\":\"Valor\",\"valorFinanciado\":\"Valor\",\"convenio\":\"Convênio\",\"corretor\":\"Corretor\",\"produto\":\"Produto\",\"filterValue\":\"\",\"sep\":\";\"}"
     }
   ],
-  "imported_bases": []
+  "imported_bases": [
+    {
+      "id": "base-1782409895115-tg05j8d",
+      "bankName": "NEW",
+      "fileName": "DAY (1).csv",
+      "importedAt": 1782409895115,
+      "importedBy": "administrador",
+      "newCount": 1,
+      "dupCount": 0,
+      "rawContent": "Alerta;N° Proposta;Nome;Data Base;Dt Atv;Empreg;Valor Liberado;Valor Parcela;Situação;Atividade;Hr Atv;Produto;CPF;Usuario;Login Digitador;Descr. Convênio\r\n;830922785;DOUGLAS SENA RODRIGUES;11/jun;11/jun;0;50.000,00;100;AND;CHECKLIST PROMOTORA;05:18;MRG - PUBLICO DIG;17475545709;9ETOD;DCE-NOVAPROMOTORA4568;CREDITO DO TRBALHADOR\r\n",
+      "proposalIds": "[\"prop-830922785-0-1782409893612\"]"
+    }
+  ]
 }

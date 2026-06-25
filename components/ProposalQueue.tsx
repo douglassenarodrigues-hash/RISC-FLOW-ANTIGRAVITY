@@ -11,6 +11,8 @@ import {
   Zap, 
   FileText, 
   CheckCircle2, 
+  CheckCircle,
+  XCircle,
   AlertTriangle, 
   History, 
   Info,
@@ -1129,7 +1131,16 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
     doc.text("Assinatura Digital", 195, signatureY + 5, { align: 'right' });
     doc.text("RiskFlow Anti-Fraud System", 195, signatureY + 9, { align: 'right' });
 
-    doc.save(`parecer_tecnico_${proposal.ade}.pdf`);
+    // Custom robust blob download for sandbox environments
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `parecer_tecnico_${proposal.ade}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const isLockedByMe = proposal.lockedBy === currentUser.username;
@@ -1194,8 +1205,12 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
       )}
       <div className="flex-1 flex flex-col w-full min-w-0">
         <div 
-          className={`card-esteira-global group w-full ${isSidebarCollapsed ? '!max-w-none' : ''} ${isExpanded ? 'border-blue-500/55 shadow-lg shadow-blue-500/10 rounded-b-none mb-0' : ''} ${isDarkMode ? 'bg-[#0b1120]' : 'bg-white border-slate-200'}`}
-          onClick={onToggle}
+          className={`card-esteira-global group w-full ${isSidebarCollapsed ? '!max-w-none' : ''} ${isExpanded && isLockedByMe ? 'border-blue-500/55 shadow-lg shadow-blue-500/10 rounded-b-none mb-0' : ''} ${isDarkMode ? 'bg-[#0b1120]' : 'bg-white border-slate-200'} ${!isLockedByMe ? 'cursor-default' : 'cursor-pointer'}`}
+          onClick={() => {
+            if (isLockedByMe) {
+              onToggle();
+            }
+          }}
         >
         <div className="info-bloco">
           <span className="info-label">ADE</span>
@@ -1275,48 +1290,61 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
           </span>
         </div>
 
-        <div className="info-bloco items-center justify-center min-w-[100px]" onClick={(e) => e.stopPropagation()}>
-          <span className="info-label w-full text-center">Mesa</span>
-          <div className="flex items-center justify-center gap-1.5 mt-1">
-            {proposal.lockedBy ? (
-              <>
-                <div 
-                  className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 ${
-                    isLockedByMe ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'
-                  }`}
-                >
-                  {isLockedByMe ? <Unlock size={10} /> : <Lock size={10} />}
-                  {isLockedByMe ? 'VOCÊ' : proposal.lockedBy}
-                </div>
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRelease(proposal.id);
-                  }}
-                  className={`p-1 px-2 rounded-full border text-[8px] uppercase font-black tracking-wider flex items-center gap-0.5 transition-all shrink-0 ${
-                    isDarkMode 
-                    ? 'bg-red-950/40 border-red-900/50 text-red-400 hover:bg-red-900 hover:text-white' 
-                    : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-600 hover:text-white'
-                  }`}
-                  title="Soltar Análise (Devolver para Fila)"
-                >
-                  <Unlock size={8} />
-                  <span>Soltar</span>
-                </button>
-              </>
-            ) : (
-              <div 
-                className="bg-[#f1f5f9] text-slate-900 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0"
+        <div className="info-bloco items-center justify-center min-w-[120px]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            <span className="info-label m-0">Mesa</span>
+            {!proposal.lockedBy && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTakeOver(proposal.id);
+                  if (!isExpanded) {
+                    onToggle();
+                  }
+                }}
+                className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider flex items-center gap-0.5 transition-all cursor-pointer ${
+                  isDarkMode 
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white' 
+                  : 'bg-slate-900 hover:bg-slate-800 text-white'
+                }`}
+                title="Assumir análise da proposta"
               >
-                <Unlock size={10} /> LIVRE
-              </div>
+                <Zap size={8} /> Assumir
+              </button>
             )}
           </div>
+          {proposal.lockedBy && (
+            <div className="flex items-center justify-center gap-1.5 mt-1">
+              <div 
+                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 ${
+                  isLockedByMe ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'
+                }`}
+              >
+                {isLockedByMe ? <Unlock size={10} /> : <Lock size={10} />}
+                {isLockedByMe ? 'VOCÊ' : proposal.lockedBy}
+              </div>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRelease(proposal.id);
+                }}
+                className={`p-1 px-2 rounded-full border text-[8px] uppercase font-black tracking-wider flex items-center gap-0.5 transition-all shrink-0 ${
+                  isDarkMode 
+                  ? 'bg-red-950/40 border-red-900/50 text-red-400 hover:bg-red-900 hover:text-white' 
+                  : 'bg-red-50 border-red-200 text-red-650 hover:bg-red-650 hover:text-white'
+                }`}
+                title="Soltar Análise (Devolver para Fila)"
+              >
+                <Unlock size={8} />
+                <span>Soltar</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Expanded Content */}
-      {isExpanded && (
+      {isExpanded && isLockedByMe && (
         <div className={`w-full transition-all duration-300 ${isSidebarCollapsed ? 'max-w-none' : 'max-w-[1300px]'} mb-4 p-8 rounded-b-2xl border-x border-b animate-in slide-in-from-top-2 duration-300 ${isDarkMode ? 'bg-[#0b1120]/80 border-[#1e293b]' : 'bg-slate-50 border-slate-200'}`}>
           
           {/* ⚠️ Alerta de Reincidência */}
@@ -2178,15 +2206,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                           <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Parecer Técnico / Notas</label>
                             <textarea 
-                              className={`w-full h-32 p-4 border rounded-xl text-sm font-medium outline-none focus:ring-4 transition-all resize-none ${isDarkMode ? 'bg-slate-800/50 border-slate-700 text-white focus:ring-blue-500/10' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-blue-50'}`}
-                              placeholder="Descreva sua análise..."
-                              value={parecer}
-                              onChange={(e) => setParecer(e.target.value)}
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <button 
+                              className={`w-full h-32 p-4 border rounded-xl text-sm font-medium outline-none focus:ring-4 transition-all resize-none ${isDarkMode ? 'bg-slate-800/50 border-slate-700 text-white focus:ring-blue-500/10' : '                            <button 
                               onClick={() => {
                                 const mot = deAcordo 
                                   ? `APROVADO COM RESSALVA - DE ACORDO: ${quemAutorizou.trim()}.${parecer.trim() ? ` Motivo: ${parecer.trim()}` : ''}`
@@ -2198,7 +2218,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                               disabled={isApproveDisabled}
                               className="flex items-center justify-center gap-2 py-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20 text-center"
                             >
-                              <span className="text-[12px] inline-block align-middle mr-1.5">✅</span>
+                              <CheckCircle size={14} className="shrink-0" />
                               <span className="text-center">APROVAR</span>
                             </button>
                             <button 
@@ -2219,7 +2239,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                               disabled={isReprovarDisabled}
                               className="flex items-center justify-center gap-2 py-4 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 transition-all disabled:opacity-50 shadow-lg shadow-red-500/20 text-center"
                             >
-                              <span className="text-[12px] inline-block align-middle mr-1.5">❌</span>
+                              <XCircle size={14} className="shrink-0" />
                               <span className="text-center">REPROVAR</span>
                             </button>
                             <button 
@@ -2232,7 +2252,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                               disabled={isPendênciaDisabled}
                               className="flex items-center justify-center gap-2 py-4 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 transition-all disabled:opacity-50 shadow-lg shadow-amber-500/20 text-center"
                             >
-                              <span className="text-[12px] inline-block align-middle mr-1.5">🔴</span>
+                              <AlertTriangle size={14} className="shrink-0" />
                               <span className="text-center">PENDENCIAR</span>
                             </button>
                             <button 
@@ -2245,7 +2265,7 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                               disabled={false}
                               className="flex items-center justify-center gap-2 py-4 bg-cyan-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-cyan-500 transition-all disabled:opacity-50 shadow-lg shadow-cyan-500/20 text-center"
                             >
-                              <span className="text-[12px] inline-block align-middle mr-1.5">📞</span>
+                              <PhoneCall size={14} className="shrink-0" />
                               <span className="text-center">ENVIAR PARA CONTATO</span>
                             </button>
                             <button 

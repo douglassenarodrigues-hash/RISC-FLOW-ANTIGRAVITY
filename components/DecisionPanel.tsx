@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RiskStatus, Checklist, Proposal } from '../types';
 import { 
-  CheckCircle2, 
+  CheckCircle, 
   XCircle, 
   HelpCircle, 
   Send, 
@@ -12,7 +12,9 @@ import {
   ShieldCheck,
   AlertOctagon,
   ClipboardList,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle,
+  PhoneCall
 } from 'lucide-react';
 
 interface DecisionPanelProps {
@@ -289,10 +291,10 @@ export const DecisionPanel: React.FC<DecisionPanelProps> = ({ proposalId, status
                             'bg-red-600 text-white shadow-red-200 hover:bg-red-700'
                         }`}
                     >
-                        {decisionAction === 'APPROVE' ? <><span className="text-[12px] inline-block align-middle mr-1.5">✅</span>APROVAR</> : 
-                         decisionAction === 'PENDING' ? <><span className="text-[12px] inline-block align-middle mr-1.5">🔴</span>PENDENCIAR</> : 
-                         decisionAction === 'CONTACT' ? <><span className="text-[12px] inline-block align-middle mr-1.5">📞</span>ENVIAR PARA CONTATO</> : 
-                         <><span className="text-[12px] inline-block align-middle mr-1.5">❌</span>REPROVAR</>}
+                        {decisionAction === 'APPROVE' ? <><CheckCircle size={16} className="shrink-0" />APROVAR</> : 
+                         decisionAction === 'PENDING' ? <><AlertTriangle size={16} className="shrink-0" />PENDENCIAR</> : 
+                         decisionAction === 'CONTACT' ? <><PhoneCall size={16} className="shrink-0" />ENVIAR PARA CONTATO</> : 
+                         <><XCircle size={16} className="shrink-0" />REPROVAR</>}
                     </button>
                     {!canExecute() && (
                         <p className="text-center mt-4 text-[10px] font-bold text-red-500 animate-pulse">
