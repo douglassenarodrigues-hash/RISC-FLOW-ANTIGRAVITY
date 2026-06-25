@@ -2206,7 +2206,15 @@ const ProposalQueueItem: React.FC<ItemProps> = ({
                           <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Parecer Técnico / Notas</label>
                             <textarea 
-                              className={`w-full h-32 p-4 border rounded-xl text-sm font-medium outline-none focus:ring-4 transition-all resize-none ${isDarkMode ? 'bg-slate-800/50 border-slate-700 text-white focus:ring-blue-500/10' : '                            <button 
+                              className={`w-full h-32 p-4 border rounded-xl text-sm font-medium outline-none focus:ring-4 transition-all resize-none ${isDarkMode ? 'bg-slate-800/50 border-slate-700 text-white focus:ring-blue-500/10' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-blue-50'}`}
+                              placeholder="Descreva sua análise..."
+                              value={parecer}
+                              onChange={(e) => setParecer(e.target.value)}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <button 
                               onClick={() => {
                                 const mot = deAcordo 
                                   ? `APROVADO COM RESSALVA - DE ACORDO: ${quemAutorizou.trim()}.${parecer.trim() ? ` Motivo: ${parecer.trim()}` : ''}`
